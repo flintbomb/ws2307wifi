@@ -25,8 +25,6 @@ template <class T> int EEPROM_writeAnything(int ee, const T& value)
     unsigned int i;
     for (i = 0; i < sizeof(value); i++)
           EEPROM.write(ee++, *p++);
-
-    delay(50);  // this resets also the WDT watchdog, important for long EEPROM usage
     return i;
 }
 
@@ -36,8 +34,6 @@ template <class T> int EEPROM_readAnything(int ee, T& value)
     unsigned int i;
     for (i = 0; i < sizeof(value); i++)
           *p++ = EEPROM.read(ee++);
-
-    delay(50);  // this resets also the WDT watchdog, important for long EEPROM usage
     return i;
 }
 
@@ -70,6 +66,12 @@ int adr=10; // die ersten 10 lasse frei fuer Magic, Chksum
   EEPROM_writeAnything(adr,callsign);  adr += sizeof(callsign);
   EEPROM_writeAnything(adr,sprache);  adr += sizeof(sprache);
   EEPROM_writeAnything(adr,html_refreshtime);  adr += sizeof(html_refreshtime);
+  EEPROM_writeAnything(adr,tci_host);  adr += sizeof(tci_host);
+  EEPROM_writeAnything(adr,tci_port);  adr += sizeof(tci_port);
+  EEPROM_writeAnything(adr,use_static_ip);    adr += sizeof(use_static_ip);
+  EEPROM_writeAnything(adr,static_ip_str);    adr += sizeof(static_ip_str);
+  EEPROM_writeAnything(adr,static_gw_str);    adr += sizeof(static_gw_str);
+  EEPROM_writeAnything(adr,static_mask_str);  adr += sizeof(static_mask_str);
 
   dx = adr;
 
@@ -97,6 +99,12 @@ char ok=1;
     EEPROM_readAnything(adr,callsign);      adr += sizeof(callsign);
     EEPROM_readAnything(adr,sprache);       adr += sizeof(sprache);
     EEPROM_readAnything(adr,html_refreshtime);  adr += sizeof(html_refreshtime);
+    EEPROM_readAnything(adr,tci_host);      adr += sizeof(tci_host);
+    EEPROM_readAnything(adr,tci_port);      adr += sizeof(tci_port);
+    EEPROM_readAnything(adr,use_static_ip);    adr += sizeof(use_static_ip);
+    EEPROM_readAnything(adr,static_ip_str);    adr += sizeof(static_ip_str);
+    EEPROM_readAnything(adr,static_gw_str);    adr += sizeof(static_gw_str);
+    EEPROM_readAnything(adr,static_mask_str);  adr += sizeof(static_mask_str);
 
     //eeprom_printf("EEPROM erfolgreich gelesen.");
 

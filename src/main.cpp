@@ -17,6 +17,13 @@ char callsign[15] = "";
 char ssid[50] = {"DropItLikeUtaAHotspot_IoT"};
 char password[50] = {"flintbomb"};
 
+// Static IP configuration. Defaults to static 10.69.69.12 in STA mode;
+// can be overridden via the setup page (saved to EEPROM).
+unsigned char use_static_ip   = 1;
+char          static_ip_str[16]   = "10.69.69.12";
+char          static_gw_str[16]   = "10.69.69.1";
+char          static_mask_str[16] = "255.255.255.0";
+
 char apmode = 0;
 
 // this local WebServer
@@ -39,30 +46,22 @@ unsigned char conncnt = 0;
   // setup the serial UART for communication with DSP-7
   Serial.begin ( 38400 );
 
-  // check for 5 seconds if the jumper is set to activate AP mode
-  if(APmodeRequested())
+  // Start WiFi immediately. AP-mode detection runs from loop() during
+  // the first 5 seconds so it doesn't block this setup path.
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  if(use_static_ip)
   {
-    WiFi.mode(WIFI_AP);
-    // start the Ap (192.168.4.1)
-    WiFi.softAP("WS23SETUP");
-    apmode = 1;
-    wifi_printf((char *)"interner AP aktiviert. SSID=WS23SETUP, IP=192.168.4.1");
-    led_wlan_connected(2);
+    IPAddress ip, gw, mask;
+    if(ip.fromString(static_ip_str) && gw.fromString(static_gw_str) && mask.fromString(static_mask_str))
+      WiFi.config(ip, gw, mask);
   }
-  else
-  {
-    // connect this WiFi client to an accesspoint
-    if(WiFi.SSID() != ssid)
-    {
-        WiFi.persistent(false);
-        WiFi.mode(WIFI_STA);
-        WiFi.begin(ssid, password);
-        //wifi_station_set_auto_connect(true);
-        MDNS.begin("esp8266");
-        WiFi.softAPdisconnect(true);
-    }
-    apmode = 0;
-  }
+  WiFi.begin(ssid, password);
+  MDNS.begin("esp8266");
+  WiFi.softAPdisconnect(true);
+  apmode = 0;
+
+  pinMode(0, INPUT_PULLUP);   // GPIO0 polled in loop() for AP-mode request
 
   // setup the WebServer
   // set the functions called if a user requests this webpage or subpage
@@ -82,6 +81,9 @@ unsigned char conncnt = 0;
   server.begin();
   // HTTP server started
 
+  // start the TCI WebSocket client (only if not in AP-only setup mode)
+  if(!apmode) tci_setup();
+
   //testvals(); // !!!!!!!!!!!!1 TEST ONLY
 }
 
@@ -91,6 +93,22 @@ unsigned char conncnt = 0;
 void loop ( void )
 {
 static char connstat = 0;
+static char ap_check_done = 0;
+
+  // Non-blocking AP-mode detection: poll GPIO0 for the first 5 seconds.
+  if(!ap_check_done && !apmode)
+  {
+    if(digitalRead(0) == LOW)
+    {
+      WiFi.disconnect(true);
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP("WS23SETUP");
+      apmode = 1;
+      wifi_printf((char *)"interner AP aktiviert. SSID=WS23SETUP, IP=192.168.4.1");
+      led_wlan_connected(2);
+    }
+    if(millis() > 5000) ap_check_done = 1;
+  }
 
   if(apmode)
   {
@@ -123,6 +141,9 @@ static char connstat = 0;
 
   // send to DSP-7
   dsp7_send();
+
+  // service TCI WebSocket
+  tci_loop();
 }
 
 /*

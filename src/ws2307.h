@@ -119,6 +119,10 @@ extern char accesscode[50];
 extern char callsign[15];
 extern char ssid[50];
 extern char password[50];
+extern unsigned char use_static_ip;
+extern char          static_ip_str[16];
+extern char          static_gw_str[16];
+extern char          static_mask_str[16];
 extern char apmode;
 extern ESP8266WebServer server;
 
@@ -141,6 +145,17 @@ extern unsigned long ee_magic;
 extern int ax, bx;
 extern char sprache;
 extern unsigned long html_refreshtime;
+
+// ----------------- globals defined in tci.cpp -------------------------
+
+extern char           tci_host[40];
+extern unsigned short tci_port;
+extern unsigned long  tci_vfo_a;
+extern unsigned long  tci_vfo_b;
+extern unsigned char  tci_a_enabled;    // 1 if RX channel 0 (VFO A) enabled
+extern unsigned char  tci_b_enabled;    // 1 if RX channel 1 (VFO B / sub-RX) enabled
+extern unsigned char  tci_ptt;          // 0 = RX, 1 = TX
+extern unsigned char  tci_connected;    // 1 if WS connected
 
 // ----------------- globals defined in debug.cpp -----------------------
 
@@ -258,6 +273,11 @@ char *make_large();
 // setup_page.cpp
 void  handle_setupwebpage();
 char *makeSetupHTML();
+
+// tci.cpp
+void tci_setup();
+void tci_loop();
+void buildJavascript_control();
 
 // eeprom.cpp
 void ee_begin();

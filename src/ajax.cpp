@@ -102,6 +102,43 @@ int rownum = 1;
     XML += "</response_swr>";
   }
 
+  if(xml_mode == 2)
+  {
+    // TCI live data for the control page
+    char buf[40];
+
+    XML += "<response_tci_status>";
+    XML += tci_connected ? "connected" : "disconnected";
+    XML += "</response_tci_status>";
+
+    // Format Hz as MM.kkk,hhh MHz (e.g. 14250000 -> "14.250,000")
+    unsigned long fa = tci_vfo_a;
+    unsigned long fb = tci_vfo_b;
+    snprintf(buf, sizeof(buf), "%lu.%03lu,%03lu",
+             fa / 1000000UL, (fa / 1000UL) % 1000UL, fa % 1000UL);
+    XML += "<response_tci_vfo_a>";
+    XML += buf;
+    XML += "</response_tci_vfo_a>";
+
+    snprintf(buf, sizeof(buf), "%lu.%03lu,%03lu",
+             fb / 1000000UL, (fb / 1000UL) % 1000UL, fb % 1000UL);
+    XML += "<response_tci_vfo_b>";
+    XML += buf;
+    XML += "</response_tci_vfo_b>";
+
+    XML += "<response_tci_a_active>";
+    XML += tci_a_enabled ? "(active)" : "";
+    XML += "</response_tci_a_active>";
+
+    XML += "<response_tci_b_active>";
+    XML += tci_b_enabled ? "(active)" : "";
+    XML += "</response_tci_b_active>";
+
+    XML += "<response_tci_ptt>";
+    XML += tci_ptt ? "TX" : "RX";
+    XML += "</response_tci_ptt>";
+  }
+
   XML += "</xml>";
 }
 
@@ -117,6 +154,33 @@ void buildJavascript_coupler(char coupnum)
 
   html_send_progmem(ajax_resp_pwr);
   html_send_progmem(ajax_resp_swr);
+
+  html_send_progmem(XML_ScriptEnd);
+}
+
+static void send_tci_js_field(const char *xmltag, const char *spanid)
+{
+  char buf[300];
+  snprintf(buf, sizeof(buf),
+    " xmldoc = xmlResponse.getElementsByTagName('%s'); "
+    "if(xmldoc.length){ message = xmldoc[0].firstChild ? xmldoc[0].firstChild.nodeValue : ''; "
+    "document.getElementById('%s').innerHTML=message; }",
+    xmltag, spanid);
+  html_send_ram(buf);
+}
+
+void buildJavascript_control()
+{
+  xml_mode = 2;
+
+  html_send_progmem(XML_ScriptBegin);
+
+  send_tci_js_field("response_tci_status",   "tci_status");
+  send_tci_js_field("response_tci_vfo_a",    "tci_vfo_a");
+  send_tci_js_field("response_tci_vfo_b",    "tci_vfo_b");
+  send_tci_js_field("response_tci_a_active", "tci_a_active");
+  send_tci_js_field("response_tci_b_active", "tci_b_active");
+  send_tci_js_field("response_tci_ptt",      "tci_ptt");
 
   html_send_progmem(XML_ScriptEnd);
 }

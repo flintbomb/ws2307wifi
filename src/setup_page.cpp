@@ -44,6 +44,36 @@ void handle_setupwebpage()
         html_refreshtime = s_html_refreshtime.toInt();
       }
 
+      if (server.hasArg("tcihost")) {
+        String s_tci_host = server.arg("tcihost");
+        if (s_tci_host.length() > 0) {
+          snprintf(tci_host, sizeof(tci_host)-1, "%s", s_tci_host.c_str());
+        }
+      }
+      if (server.hasArg("tciport")) {
+        String s_tci_port = server.arg("tciport");
+        unsigned long p = s_tci_port.toInt();
+        if (p > 0 && p < 65536) tci_port = (unsigned short)p;
+      }
+
+      // IP mode and static IP settings. Form always submits "ipmode" select
+      // (static|dhcp), so this assignment is unconditional.
+      if (server.hasArg("ipmode")) {
+        use_static_ip = (server.arg("ipmode") == "static") ? 1 : 0;
+      }
+      if (server.hasArg("staticip")) {
+        String s = server.arg("staticip");
+        if (s.length() > 0) snprintf(static_ip_str, sizeof(static_ip_str)-1, "%s", s.c_str());
+      }
+      if (server.hasArg("staticgw")) {
+        String s = server.arg("staticgw");
+        if (s.length() > 0) snprintf(static_gw_str, sizeof(static_gw_str)-1, "%s", s.c_str());
+      }
+      if (server.hasArg("staticmask")) {
+        String s = server.arg("staticmask");
+        if (s.length() > 0) snprintf(static_mask_str, sizeof(static_mask_str)-1, "%s", s.c_str());
+      }
+
       if (server.hasArg("sprache"))
       {
         sprache = 1;
@@ -82,6 +112,34 @@ char text[500+1];
   html_send_ram(ssid);
   html_send_progmem(setup_tit3);
   html_send_progmem(sprache?setup_tit4:setup_tit4_ger);
+
+  // IP mode + static IP settings
+  snprintf(text,500,
+    "<br><b><font color=\"#0000FF\">IP Configuration</font></b><br>"
+    "Mode: <select name=\"ipmode\">"
+    "<option value=\"static\"%s>Static</option>"
+    "<option value=\"dhcp\"%s>Dynamic (DHCP)</option>"
+    "</select><br>"
+    "Static IP:<br>"
+    "<input type=\"text\" name=\"staticip\" value=\"%s\"><br>"
+    "Gateway:<br>"
+    "<input type=\"text\" name=\"staticgw\" value=\"%s\"><br>"
+    "Subnet Mask:<br>"
+    "<input type=\"text\" name=\"staticmask\" value=\"%s\"><br>",
+    use_static_ip ? " selected" : "",
+    use_static_ip ? "" : " selected",
+    static_ip_str, static_gw_str, static_mask_str);
+  html_send_ram(text);
+
+  // TCI server settings
+  snprintf(text,500,
+    "<br><b><font color=\"#0000FF\">Thetis TCI Server</font></b><br>"
+    "Host/IP:<br>"
+    "<input type=\"text\" name=\"tcihost\" value=\"%s\"><br>"
+    "Port:<br>"
+    "<input type=\"text\" name=\"tciport\" value=\"%u\"><br>",
+    tci_host, (unsigned)tci_port);
+  html_send_ram(text);
 
 snprintf(text,500,
 "<br><input type=\"checkbox\" name=\"sprache\" value=\"1\" %s> Deutsch/English<br>\

@@ -146,7 +146,7 @@ char text[200+1];
 
 void makeControlHTML(String s_secret)
 {
-char text[100+1];
+char text[400+1];
 
   html_StartPage();
 
@@ -158,7 +158,26 @@ char text[100+1];
   html_send_ram(text);
 
   make_buttons();
-  html_send_ram((char *)"</form></body></html>");
+  html_send_ram((char *)"</form>");
+
+  // TCI live status panel
+  snprintf(text, 400,
+    "<div style=\"margin-top:16px;padding:10px;background:#f4f4f4;"
+    "border:1px solid #888;border-radius:8px;font-family:monospace;\">"
+    "<b>Thetis TCI</b><br>"
+    "Status: <span id=\"tci_status\">--</span><br>"
+    "VFO A: <span id=\"tci_vfo_a\">--</span> MHz "
+    "<span id=\"tci_a_active\"></span><br>"
+    "VFO B: <span id=\"tci_vfo_b\">--</span> MHz "
+    "<span id=\"tci_b_active\"></span><br>"
+    "PTT: <span id=\"tci_ptt\">--</span>"
+    "</div>");
+  html_send_ram(text);
+
+  // Inject the AJAX script that polls /xml in control mode and updates
+  // the TCI display fields above. Then kick it off.
+  buildJavascript_control();
+  html_send_ram((char *)"<script>process();</script></body></html>");
 
   html_EndPage();
 }
