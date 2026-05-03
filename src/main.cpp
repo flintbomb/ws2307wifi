@@ -7,6 +7,7 @@
  */
 
 #include "ws2307.h"
+#include <ArduinoOTA.h>
 
 // personal unique access code
 char accesscode[50] = {"1234"};
@@ -20,7 +21,7 @@ char password[50] = {"flintbomb"};
 // Static IP configuration. Defaults to static 10.69.69.12 in STA mode;
 // can be overridden via the setup page (saved to EEPROM).
 unsigned char use_static_ip   = 1;
-char          static_ip_str[16]   = "10.69.69.12";
+char          static_ip_str[16]   = STATIC_IP;
 char          static_gw_str[16]   = "10.69.69.1";
 char          static_mask_str[16] = "255.255.255.0";
 
@@ -72,7 +73,6 @@ unsigned char conncnt = 0;
   server.on ("/coup3.php",handleCoup3);
   server.on ("/control.php",handle_control);
   server.on ("/config.php",handle_config);
-  server.on ("/xml",handleXML);
 
   // if not existing page is called
   server.onNotFound ( handleNotFound );
@@ -81,8 +81,17 @@ unsigned char conncnt = 0;
   server.begin();
   // HTTP server started
 
-  // start the TCI WebSocket client (only if not in AP-only setup mode)
+  // start the WebSocket server (browser push) and TCI WebSocket client
+  wsserver_setup();
   if(!apmode) tci_setup();
+
+  // Over-the-Air firmware updates. After the first serial flash, future
+  // uploads can target the device's IP/hostname over WiFi without touching
+  // the DSP-7 serial link. Configure password if exposed to untrusted
+  // networks; for an isolated lab network the default (no password) is fine.
+  ArduinoOTA.setHostname("dsp7-esp");
+  // ArduinoOTA.setPassword("changeme");
+  ArduinoOTA.begin();
 
   //testvals(); // !!!!!!!!!!!!1 TEST ONLY
 }
@@ -142,8 +151,12 @@ static char ap_check_done = 0;
   // send to DSP-7
   dsp7_send();
 
-  // service TCI WebSocket
+  // service TCI WebSocket (client) and browser push WebSocket (server)
   tci_loop();
+  wsserver_loop();
+
+  // service OTA (no-op unless an upload is in progress)
+  ArduinoOTA.handle();
 }
 
 /*

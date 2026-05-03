@@ -52,8 +52,3 @@ void handleCoup3()
   html_EndPage();
 }
 
-void handleXML()
-{
-  buildXML();
-  server.send(200,"text/xml",XML);
-}

@@ -1,186 +1,82 @@
 #include "ws2307.h"
 
-String XML;
-char kopplernummer = 1;
-int xml_mode = 0; // 0=large, 1=coupler
+// Page-side JavaScript helpers. Browsers open a WebSocket to port 81
+// (served by wsserver.cpp); each push is a JSON state snapshot. Each page
+// emits its own onmessage handler that picks the fields it needs.
 
-const char ajax_response[] PROGMEM = " xmldoc = xmlResponse.getElementsByTagName('";
-const char ajax_message[] PROGMEM = "'); message = xmldoc[0].firstChild.nodeValue; document.getElementById('largetab').rows[";
-const char ajax_element[] PROGMEM = "].cells[1].innerHTML=message;";
+// kept as a no-op so any old `<body onload='process()'>` markup doesn't
+// throw a ReferenceError after the rewrite.
+static const char WS_ScriptBegin[] PROGMEM = R"=====(
+<SCRIPT>
+function process(){}
+function connectWS(){
+ var ws=new WebSocket('ws://'+location.hostname+':81/');
+ ws.onmessage=function(e){
+  var d=JSON.parse(e.data);
+)=====";
 
-void javascript_send_element(char *response, int row)
-{
-char text[10];
-
-  html_send_progmem(ajax_response);
-  html_send_ram(response);
-  html_send_progmem(ajax_message);
-  sprintf(text,"%d",row);
-  html_send_ram(text);
-  html_send_progmem(ajax_element);
+static const char WS_ScriptEnd[] PROGMEM = R"=====(
+ };
+ ws.onclose=function(){setTimeout(connectWS,1000);};
 }
+connectWS();
+</SCRIPT>
+)=====";
 
 void buildJavascript()
 {
-char text[20];
-int rownum = 1;
-
-  xml_mode = 0;
-
-  html_send_progmem(XML_ScriptBegin);
-
-  javascript_send_element((char *)"response_runtime",0);
-  javascript_send_element((char *)"response_ip",19);
-  javascript_send_element((char *)"response_wifi",20);
-  javascript_send_element((char *)"response_signal",21);
-
-  for(int valnum = 0; valnum < SEPARATOR; valnum++)
-  {
-    sprintf(text,"response_%d",rownum);
-    javascript_send_element(text,rownum);
-
-    rownum++;
-  }
-
-  html_send_progmem(XML_ScriptEnd);
+  html_send_progmem(WS_ScriptBegin);
+  html_send_ram((char *)
+    "var t=document.getElementById('largetab');"
+    "if(d.time)t.rows[0].cells[1].innerHTML=d.time;"
+    "if(d.ip)t.rows[19].cells[1].innerHTML=d.ip;"
+    "if(d.wifi)t.rows[20].cells[1].innerHTML=d.wifi;"
+    "if(d.rssi)t.rows[21].cells[1].innerHTML=d.rssi;"
+    "if(d.rows)for(var i=0;i<d.rows.length;i++)t.rows[i+1].cells[1].innerHTML=d.rows[i];"
+  );
+  html_send_progmem(WS_ScriptEnd);
 }
-
-void buildXML()
-{
-int rownum = 1;
-
-  XML = "<?xml version='1.0' ?>";
-  XML += "<xml>";
-
-  if(xml_mode == 0)
-  {
-    // Werte fuer das grosse Display
-
-    XML += "<response_runtime>";
-    XML += s_actdate;
-    XML += " ";
-    XML += s_acttime;
-    XML += "</response_runtime>";
-
-    XML += "<response_ip>";
-    XML += wxval[IPADDRESS].sval;
-    XML += "</response_ip>";
-
-    XML += "<response_wifi>";
-    XML += wxval[WIFISTATUS].sval;
-    XML += "</response_wifi>";
-
-    sprintf(wxval[RSSIVAL].sval, "%ld dBm", WiFi.RSSI());
-
-    XML += "<response_signal>";
-    XML += wxval[RSSIVAL].sval;
-    XML += "</response_signal>";
-
-    for(int valnum = 0; valnum < SEPARATOR; valnum++)
-    {
-      XML += "<response_";
-      XML += String(rownum);
-      XML += ">";
-      XML += t_vals[valnum];
-      XML += "</response_";
-      XML += String(rownum);
-      XML += ">";
-      rownum++;
-    }
-  }
-
-  if(xml_mode == 1)
-  {
-    // Werte fuer die Kopplerdisplays
-
-    XML += "<response_power>";
-    XML += t_vals[B1_PWR + (kopplernummer - 1)*2];
-    XML += "</response_power>";
-
-    XML += "<response_swr>";
-    XML += t_vals[B1_SWR + (kopplernummer - 1)*2];
-    XML += "</response_swr>";
-  }
-
-  if(xml_mode == 2)
-  {
-    // TCI live data for the control page
-    char buf[40];
-
-    XML += "<response_tci_status>";
-    XML += tci_connected ? "connected" : "disconnected";
-    XML += "</response_tci_status>";
-
-    // Format Hz as MM.kkk,hhh MHz (e.g. 14250000 -> "14.250,000")
-    unsigned long fa = tci_vfo_a;
-    unsigned long fb = tci_vfo_b;
-    snprintf(buf, sizeof(buf), "%lu.%03lu,%03lu",
-             fa / 1000000UL, (fa / 1000UL) % 1000UL, fa % 1000UL);
-    XML += "<response_tci_vfo_a>";
-    XML += buf;
-    XML += "</response_tci_vfo_a>";
-
-    snprintf(buf, sizeof(buf), "%lu.%03lu,%03lu",
-             fb / 1000000UL, (fb / 1000UL) % 1000UL, fb % 1000UL);
-    XML += "<response_tci_vfo_b>";
-    XML += buf;
-    XML += "</response_tci_vfo_b>";
-
-    XML += "<response_tci_a_active>";
-    XML += tci_a_enabled ? "(active)" : "";
-    XML += "</response_tci_a_active>";
-
-    XML += "<response_tci_b_active>";
-    XML += tci_b_enabled ? "(active)" : "";
-    XML += "</response_tci_b_active>";
-
-    XML += "<response_tci_ptt>";
-    XML += tci_ptt ? "TX" : "RX";
-    XML += "</response_tci_ptt>";
-  }
-
-  XML += "</xml>";
-}
-
-const char ajax_resp_pwr[] PROGMEM = " xmldoc = xmlResponse.getElementsByTagName('response_power'); message = xmldoc[0].firstChild.nodeValue; document.getElementById('runtime_power').innerHTML=message;";
-const char ajax_resp_swr[] PROGMEM = " xmldoc = xmlResponse.getElementsByTagName('response_swr'); message = xmldoc[0].firstChild.nodeValue; document.getElementById('runtime_swr').innerHTML=message;";
 
 void buildJavascript_coupler(char coupnum)
 {
-  xml_mode = 1;
-  kopplernummer = coupnum;
-
-  html_send_progmem(XML_ScriptBegin);
-
-  html_send_progmem(ajax_resp_pwr);
-  html_send_progmem(ajax_resp_swr);
-
-  html_send_progmem(XML_ScriptEnd);
-}
-
-static void send_tci_js_field(const char *xmltag, const char *spanid)
-{
-  char buf[300];
-  snprintf(buf, sizeof(buf),
-    " xmldoc = xmlResponse.getElementsByTagName('%s'); "
-    "if(xmldoc.length){ message = xmldoc[0].firstChild ? xmldoc[0].firstChild.nodeValue : ''; "
-    "document.getElementById('%s').innerHTML=message; }",
-    xmltag, spanid);
-  html_send_ram(buf);
+  char text[200];
+  html_send_progmem(WS_ScriptBegin);
+  // B1_PWR/B1_SWR are entries 11/12; coupler N uses (B1_*)+ (N-1)*2
+  snprintf(text, sizeof(text),
+    "if(d.rows){"
+    "document.getElementById('runtime_power').innerHTML=d.rows[%d];"
+    "document.getElementById('runtime_swr').innerHTML=d.rows[%d];"
+    "}",
+    B1_PWR + (coupnum - 1) * 2,
+    B1_SWR + (coupnum - 1) * 2);
+  html_send_ram(text);
+  html_send_progmem(WS_ScriptEnd);
 }
 
 void buildJavascript_control()
 {
-  xml_mode = 2;
-
-  html_send_progmem(XML_ScriptBegin);
-
-  send_tci_js_field("response_tci_status",   "tci_status");
-  send_tci_js_field("response_tci_vfo_a",    "tci_vfo_a");
-  send_tci_js_field("response_tci_vfo_b",    "tci_vfo_b");
-  send_tci_js_field("response_tci_a_active", "tci_a_active");
-  send_tci_js_field("response_tci_b_active", "tci_b_active");
-  send_tci_js_field("response_tci_ptt",      "tci_ptt");
-
-  html_send_progmem(XML_ScriptEnd);
+  char text[700];
+  html_send_progmem(WS_ScriptBegin);
+  html_send_ram((char *)
+    "if(d.tci_status!==undefined)document.getElementById('tci_status').innerHTML=d.tci_status;"
+    "if(d.tci_vfo_a!==undefined)document.getElementById('tci_vfo_a').innerHTML=d.tci_vfo_a;"
+    "if(d.tci_vfo_b!==undefined)document.getElementById('tci_vfo_b').innerHTML=d.tci_vfo_b;"
+    "if(d.tci_a_active!==undefined)document.getElementById('tci_a_active').innerHTML=d.tci_a_active;"
+    "if(d.tci_b_active!==undefined)document.getElementById('tci_b_active').innerHTML=d.tci_b_active;"
+    "if(d.tci_ptt!==undefined)document.getElementById('tci_ptt').innerHTML=d.tci_ptt;"
+  );
+  // Coupler-1 gauges. Power max = 1500W, SWR scale 1..5, color zones at 1.5/2.5
+  snprintf(text, sizeof(text),
+    "if(d.rows){"
+      "var p=parseFloat(d.rows[%d])||0;"
+      "document.getElementById('powerText').innerHTML=p.toFixed(1);"
+      "document.getElementById('powerArc').style.strokeDashoffset=251*(1-Math.min(1,p/1500));"
+      "var s=parseFloat(d.rows[%d])||1;"
+      "document.getElementById('swrText').innerHTML=s.toFixed(2);"
+      "document.getElementById('swrArc').style.strokeDashoffset=251*(1-Math.min(1,Math.max(0,(s-1)/4)));"
+      "document.getElementById('swrArc').style.stroke=s>2.5?'#cc0000':(s>1.5?'#cc8800':'#00aa00');"
+    "}",
+    B1_PWR, B1_SWR);
+  html_send_ram(text);
+  html_send_progmem(WS_ScriptEnd);
 }

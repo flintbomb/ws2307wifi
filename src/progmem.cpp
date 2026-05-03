@@ -12,40 +12,8 @@
 
 // Beginn des AJAX Scripts
 
-const char XML_ScriptBegin[] PROGMEM = R"=====(
-<SCRIPT>
-var xmlHttp=createXmlHttpObject();
-
-function createXmlHttpObject(){
- if(window.XMLHttpRequest){
- xmlHttp=new XMLHttpRequest();
- }else{
- xmlHttp=new ActiveXObject('Microsoft.XMLHTTP');
- }
- return xmlHttp;
-}
-
-function process(){
- if(xmlHttp.readyState==0 || xmlHttp.readyState==4){
- xmlHttp.open('PUT','xml',true);
- xmlHttp.onreadystatechange=handleServerResponse; // no brackets?????
- xmlHttp.send(null);
- }
- setTimeout('process()',500);
-}
-
-function handleServerResponse(){
- if(xmlHttp.readyState==4 && xmlHttp.status==200){
- xmlResponse=xmlHttp.responseXML;
-)=====";
-
-// und hiermit wird das Script abgeschlossen
-
-const char XML_ScriptEnd[] PROGMEM = R"=====(
-}
-}
-</SCRIPT></head>
-)=====";
+// XML_ScriptBegin/End were the AJAX-polling boilerplate; replaced by the
+// WebSocket handler emitted from ajax.cpp.
 
 
 // ============ allgemeine Texte fuer die Webseiten ===========================

@@ -17,15 +17,17 @@ static unsigned long last_reconnect_attempt = 0;
 // may contain several. Parse each command:value list.
 static void parse_tci_line(const char *line)
 {
-  // vfo:<rx>,<vfo>,<freq>;
+  // vfo:<rx>,<vfo>,<freq>;  — track main VFO (vfo 0) of each receiver:
+  // rx 0 -> tci_vfo_a (displayed as "RX1"), rx 1 -> tci_vfo_b ("RX2").
+  // The receiver whose dial most recently moved is marked active.
   if(strncmp(line, "vfo:", 4) == 0)
   {
     int rx = -1, vfo = -1;
     unsigned long freq = 0;
-    if(sscanf(line + 4, "%d,%d,%lu", &rx, &vfo, &freq) == 3 && rx == 0)
+    if(sscanf(line + 4, "%d,%d,%lu", &rx, &vfo, &freq) == 3 && vfo == 0)
     {
-      if(vfo == 0) tci_vfo_a = freq;
-      else if(vfo == 1) tci_vfo_b = freq;
+      if(rx == 0) { tci_vfo_a = freq; tci_a_enabled = 1; tci_b_enabled = 0; }
+      else if(rx == 1) { tci_vfo_b = freq; tci_a_enabled = 0; tci_b_enabled = 1; }
     }
     return;
   }
@@ -37,19 +39,6 @@ static void parse_tci_line(const char *line)
     return;
   }
 
-  // rx_channel_enable:<rx>,<channel>,<true|false>;
-  // channel 0 = VFO A, channel 1 = sub-RX (VFO B)
-  if(strncmp(line, "rx_channel_enable:", 18) == 0)
-  {
-    int rx = -1, ch = -1;
-    if(sscanf(line + 18, "%d,%d", &rx, &ch) == 2 && rx == 0)
-    {
-      unsigned char on = strstr(line, "true") ? 1 : 0;
-      if(ch == 0) tci_a_enabled = on;
-      else if(ch == 1) tci_b_enabled = on;
-    }
-    return;
-  }
 }
 
 static void parse_tci_payload(const char *payload, size_t len)

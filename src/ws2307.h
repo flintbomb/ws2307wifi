@@ -164,11 +164,9 @@ extern char wifi_msg[100];
 extern char eeprom_msg[100];
 extern char wx_msg[100];
 
-// ----------------- globals defined in ajax.cpp ------------------------
-
-extern String XML;
-extern char kopplernummer;
-extern int  xml_mode;
+// ----------------- (removed) globals defined in ajax.cpp --------------
+// XML / kopplernummer / xml_mode were retired when the page polling was
+// replaced by the wsserver.cpp WebSocket push.
 
 // ----------------- globals defined in ws2307_evaluate.cpp -------------
 
@@ -196,8 +194,6 @@ extern int            txcfg_len;
 
 // ----------------- PROGMEM strings defined in progmem.cpp -------------
 
-extern const char XML_ScriptBegin[]     PROGMEM;
-extern const char XML_ScriptEnd[]       PROGMEM;
 extern const char htmlpages_begin[]     PROGMEM;
 extern const char largepage_css_style[] PROGMEM;
 extern const char html_picture[]        PROGMEM;
@@ -243,12 +239,9 @@ void handleRoot();
 void handleCoup1();
 void handleCoup2();
 void handleCoup3();
-void handleXML();
 
 // ajax.cpp
-void javascript_send_element(char *response, int row);
 void buildJavascript();
-void buildXML();
 void buildJavascript_coupler(char coupnum);
 
 // config.cpp
@@ -278,6 +271,10 @@ char *makeSetupHTML();
 void tci_setup();
 void tci_loop();
 void buildJavascript_control();
+
+// wsserver.cpp
+void wsserver_setup();
+void wsserver_loop();
 
 // eeprom.cpp
 void ee_begin();
