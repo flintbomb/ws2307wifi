@@ -236,13 +236,9 @@ void html_EndPage();
 // HtmlHandler.cpp
 void handleNotFound();
 void handleRoot();
-void handleCoup1();
-void handleCoup2();
-void handleCoup3();
 
 // ajax.cpp
 void buildJavascript();
-void buildJavascript_coupler(char coupnum);
 
 // config.cpp
 int  handle_config();
@@ -252,9 +248,6 @@ void makeConfigHTML(String s_secret);
 int  handle_control();
 void make_buttons();
 void makeControlHTML(String s_secret);
-
-// coupler.cpp
-void make_coupler(char coupnum);
 
 // large.cpp
 void  make_largeheader();

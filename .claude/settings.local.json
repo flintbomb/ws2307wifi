@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/Users/jason/.platformio/penv/Scripts/platformio.exe run *)",
+      "Bash(pio run *)",
+      "PowerShell(pio run 2>&1)"
+    ]
+  }
+}

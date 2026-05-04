@@ -68,9 +68,6 @@ unsigned char conncnt = 0;
   // set the functions called if a user requests this webpage or subpage
   server.on ("/", handleRoot );
   server.on ("/setup.php",handle_setupwebpage);
-  server.on ("/coup1.php",handleCoup1);
-  server.on ("/coup2.php",handleCoup2);
-  server.on ("/coup3.php",handleCoup3);
   server.on ("/control.php",handle_control);
   server.on ("/config.php",handle_config);
 

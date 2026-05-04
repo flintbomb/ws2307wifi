@@ -26,29 +26,10 @@ void handleNotFound()
 
 void handleRoot()
 {
-  html_StartPage();
-  make_large();
-  html_EndPage();
+  // The old large-table page was retired — / now renders the unified
+  // dashboard from control.cpp. handle_control() takes care of the
+  // optional secret/passcode arg for the action buttons.
+  handle_control();
 }
 
-void handleCoup1()
-{
-  html_StartPage();
-  make_coupler(1);
-  html_EndPage();
-}
-
-void handleCoup2()
-{
-  html_StartPage();
-  make_coupler(2);
-  html_EndPage();
-}
-
-void handleCoup3()
-{
-  html_StartPage();
-  make_coupler(3);
-  html_EndPage();
-}
 

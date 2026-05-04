@@ -91,9 +91,6 @@ const char html_ltail[] PROGMEM = R"=====(
 </table><br>
 <p>
 <a href="/control.php" target="_self" class="bt">Remote Control</a><br>
-<a href="/coup1.php" target="_self" class="bt">Coupler-1</a><br>
-<a href="/coup2.php" target="_self" class="bt">Coupler-2</a><br>
-<a href="/coup3.php" target="_self" class="bt">Coupler-3</a><br>
 <a href="/setup.php" target="_self" class="bt">SETUP</a><br>
 <a href="/config.php" target="_self" class="bt">CONFIG</a><br>
 </p>
@@ -111,9 +108,6 @@ const char html_ltail_german[] PROGMEM = R"=====(
 </table><br>
 <p>
 <a href="/control.php" target="_self" class="bt">Fernbedienung</a><br>
-<a href="/coup1.php" target="_self" class="bt">Koppler-1</a><br>
-<a href="/coup2.php" target="_self" class="bt">Koppler-2</a><br>
-<a href="/coup3.php" target="_self" class="bt">Koppler-3</a><br>
 <a href="/setup.php" target="_self" class="bt">SETUP</a><br>
 <a href="/config.php" target="_self" class="bt">Konfiguration</a><br>
 </p>

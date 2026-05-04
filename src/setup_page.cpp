@@ -144,7 +144,7 @@ char text[500+1];
 snprintf(text,500,
 "<br><input type=\"checkbox\" name=\"sprache\" value=\"1\" %s> Deutsch/English<br>\
 <p><input class=\"bt\" type=\"submit\" target=\"_self\" value=\"%s\"/></p>\
-<a href=\"/\" target=\"_self\" class=\"bt\">%s</a><br>\
+<a href=\"/control.php\" target=\"_self\" class=\"bt\">%s</a><br>\
 </form>\
 </body>\
 </html>",

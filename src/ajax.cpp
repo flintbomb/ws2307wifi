@@ -37,27 +37,17 @@ void buildJavascript()
   html_send_progmem(WS_ScriptEnd);
 }
 
-void buildJavascript_coupler(char coupnum)
-{
-  char text[200];
-  html_send_progmem(WS_ScriptBegin);
-  // B1_PWR/B1_SWR are entries 11/12; coupler N uses (B1_*)+ (N-1)*2
-  snprintf(text, sizeof(text),
-    "if(d.rows){"
-    "document.getElementById('runtime_power').innerHTML=d.rows[%d];"
-    "document.getElementById('runtime_swr').innerHTML=d.rows[%d];"
-    "}",
-    B1_PWR + (coupnum - 1) * 2,
-    B1_SWR + (coupnum - 1) * 2);
-  html_send_ram(text);
-  html_send_progmem(WS_ScriptEnd);
-}
-
 void buildJavascript_control()
 {
-  char text[700];
+  char text[1500];
   html_send_progmem(WS_ScriptBegin);
+
+  // Header status strip + TCI panel
   html_send_ram((char *)
+    "if(d.time)document.getElementById('hdr_time').innerHTML=d.time;"
+    "if(d.ip)document.getElementById('hdr_ip').innerHTML=d.ip;"
+    "if(d.wifi)document.getElementById('hdr_wifi').innerHTML=d.wifi;"
+    "if(d.rssi)document.getElementById('hdr_rssi').innerHTML=d.rssi;"
     "if(d.tci_status!==undefined)document.getElementById('tci_status').innerHTML=d.tci_status;"
     "if(d.tci_vfo_a!==undefined)document.getElementById('tci_vfo_a').innerHTML=d.tci_vfo_a;"
     "if(d.tci_vfo_b!==undefined)document.getElementById('tci_vfo_b').innerHTML=d.tci_vfo_b;"
@@ -65,18 +55,46 @@ void buildJavascript_control()
     "if(d.tci_b_active!==undefined)document.getElementById('tci_b_active').innerHTML=d.tci_b_active;"
     "if(d.tci_ptt!==undefined)document.getElementById('tci_ptt').innerHTML=d.tci_ptt;"
   );
-  // Coupler-1 gauges. Power max = 1500W, SWR scale 1..5, color zones at 1.5/2.5
+
+  // Coupler power/SWR helper, plus generic gauge helper for the supply/temp
+  // gauges. d.rows[] indexes match the enum order in ws2307.h.
   snprintf(text, sizeof(text),
     "if(d.rows){"
-      "var p=parseFloat(d.rows[%d])||0;"
-      "document.getElementById('powerText').innerHTML=p.toFixed(1);"
-      "document.getElementById('powerArc').style.strokeDashoffset=251*(1-Math.min(1,p/1500));"
-      "var s=parseFloat(d.rows[%d])||1;"
-      "document.getElementById('swrText').innerHTML=s.toFixed(2);"
-      "document.getElementById('swrArc').style.strokeDashoffset=251*(1-Math.min(1,Math.max(0,(s-1)/4)));"
-      "document.getElementById('swrArc').style.stroke=s>2.5?'#cc0000':(s>1.5?'#cc8800':'#00aa00');"
+      "function uG(i,pi,si){"
+        "var p=parseFloat(d.rows[pi])||0;"
+        "document.getElementById('powerText'+i).innerHTML=p.toFixed(1);"
+        "document.getElementById('powerArc'+i).style.strokeDashoffset=251*(1-Math.min(1,p/1500));"
+        "var s=parseFloat(d.rows[si])||1;"
+        "document.getElementById('swrText'+i).innerHTML=s.toFixed(2);"
+        "document.getElementById('swrArc'+i).style.strokeDashoffset=251*(1-Math.min(1,Math.max(0,(s-1)/4)));"
+        "document.getElementById('swrArc'+i).style.stroke=s>2.5?'#cc0000':(s>1.5?'#cc8800':'#00aa00');"
+      "}"
+      "uG(1,%d,%d);uG(2,%d,%d);uG(3,%d,%d);"
+      "function vG(id,idx,mx,dec){"
+        "var v=parseFloat(d.rows[idx])||0;"
+        "document.getElementById('txt_'+id).innerHTML=v.toFixed(dec);"
+        "document.getElementById('arc_'+id).style.strokeDashoffset=251*(1-Math.min(1,Math.max(0,v/mx)));"
+      "}"
+      "vG('dcv',%d,60,1);vG('dci',%d,40,1);vG('dcp',%d,2400,0);vG('eff',%d,100,0);"
+      "vG('t1',%d,80,1);vG('t2',%d,80,1);vG('fan',%d,100,0);"
+      // Temp color: green <50, orange <65, red >=65
+      "var t1=parseFloat(d.rows[%d])||0;document.getElementById('arc_t1').style.stroke=t1>=65?'#cc0000':(t1>=50?'#cc8800':'#00aa00');"
+      "var t2=parseFloat(d.rows[%d])||0;document.getElementById('arc_t2').style.stroke=t2>=65?'#cc0000':(t2>=50?'#cc8800':'#00aa00');"
+      // Band/antenna badges
+      "document.getElementById('hdr_band').innerHTML=d.rows[%d]||'--';"
+      "document.getElementById('hdr_ant').innerHTML=d.rows[%d]||'--';"
+      // Op state badge + PTT highlight
+      "var st=d.rows[%d]||'--';document.getElementById('hdr_state').innerHTML=st;"
+      "var pt=d.rows[%d]||'--';var pe=document.getElementById('hdr_ptt');"
+      "pe.innerHTML=pt;pe.style.background=(/TX|ON|tx|on/.test(pt))?'#cc0000':'#444';"
     "}",
-    B1_PWR, B1_SWR);
+    B1_PWR, B1_SWR, B2_PWR, B2_SWR, B3_PWR, B3_SWR,
+    DCVOLT, DCAMP, DCPWR, EFFICIENCY,
+    TEMPERATURE1, TEMPERATURE2, FAN,
+    TEMPERATURE1, TEMPERATURE2,
+    BAND_SELECTED, ANTENNA_SELECTED,
+    OPSTATE, PTT);
   html_send_ram(text);
+
   html_send_progmem(WS_ScriptEnd);
 }

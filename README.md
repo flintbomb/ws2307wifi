@@ -11,6 +11,35 @@ pio run -t upload       # flash the connected ESP8266
 pio device monitor      # open serial monitor at 38400 baud
 ```
 
+## OTA (over-the-air) firmware updates
+
+The firmware includes `ArduinoOTA`, so after the first serial flash you can
+update it over WiFi without disturbing the DSP-7 UART link. Useful for
+in-circuit programming where the DSP-7 is connected to the same UART pins
+the bootloader uses.
+
+```sh
+pio run -e esp8266_ota -t upload    # upload via WiFi
+```
+
+The OTA upload target is configured in `platformio.ini` under
+`[env:esp8266_ota]`. By default it points at `10.69.69.12`; change
+`upload_port` if the device's IP differs (or use `dsp7-esp.local` if mDNS
+works on your network — the firmware sets that as the OTA hostname).
+
+To require a password, uncomment the `setPassword(...)` line in `main.cpp`,
+re-flash once over serial (or OTA without a password set), and uncomment
+the matching `--auth=...` line in `platformio.ini`. Use the same string
+in both places.
+
+Notes:
+- OTA needs roughly half the flash free to stage the new image. Current
+  firmware uses ~46% so there is plenty of headroom.
+- The device verifies the upload before committing it, so a failed/aborted
+  OTA upload won't brick the board — it just keeps running the old image.
+- OTA service uses port 8266 by default (handled internally; not the same
+  as the browser-push WebSocket on port 81 or the HTTP server on port 80).
+
 ## Layout
 
 ```
