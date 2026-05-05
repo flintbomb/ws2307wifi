@@ -193,7 +193,10 @@ void insert_datatable()
 char *make_large()
 {
   strcpy(wxval[IPADDRESS].sval, const_cast<char*>(WiFi.localIP().toString().c_str()));
-  sprintf(wxval[WIFISTATUS].sval, "AP: %s", ssid);
+  // sval is VALSTRLEN bytes (25). ssid can be up to 50 — cap with a
+  // %.*s precision so the compiler can prove it fits ("AP: " is 4 chars,
+  // leaving 20 for the SSID + 1 NUL).
+  snprintf(wxval[WIFISTATUS].sval, VALSTRLEN, "AP: %.20s", ssid);
 
   // Header mit Titel, CSS und Bildertitel
   make_largeheader();

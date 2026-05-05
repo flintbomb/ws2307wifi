@@ -55,6 +55,9 @@ void handle_setupwebpage()
         unsigned long p = s_tci_port.toInt();
         if (p > 0 && p < 65536) tci_port = (unsigned short)p;
       }
+      // tci_enabled is a checkbox: present in form -> on, absent -> off.
+      // Always assigned unconditionally so unticking it actually persists.
+      tci_enabled = server.hasArg("tcienabled") ? 1 : 0;
 
       // IP mode and static IP settings. Form always submits "ipmode" select
       // (static|dhcp), so this assignment is unconditional.
@@ -134,10 +137,12 @@ char text[500+1];
   // TCI server settings
   snprintf(text,500,
     "<br><b><font color=\"#0000FF\">Thetis TCI Server</font></b><br>"
+    "<input type=\"checkbox\" name=\"tcienabled\" value=\"1\" %s> Enable TCI<br>"
     "Host/IP:<br>"
     "<input type=\"text\" name=\"tcihost\" value=\"%s\"><br>"
     "Port:<br>"
     "<input type=\"text\" name=\"tciport\" value=\"%u\"><br>",
+    tci_enabled ? "checked" : "",
     tci_host, (unsigned)tci_port);
   html_send_ram(text);
 

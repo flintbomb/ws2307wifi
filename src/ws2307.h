@@ -150,10 +150,12 @@ extern unsigned long html_refreshtime;
 
 extern char           tci_host[40];
 extern unsigned short tci_port;
+extern unsigned char  tci_enabled;      // 1 = TCI WS client + freq forwarding active
 extern unsigned long  tci_vfo_a;
 extern unsigned long  tci_vfo_b;
-extern unsigned char  tci_a_enabled;    // 1 if RX channel 0 (VFO A) enabled
-extern unsigned char  tci_b_enabled;    // 1 if RX channel 1 (VFO B / sub-RX) enabled
+extern unsigned long  tci_tx_freq;      // last TX frequency from tx_frequency_ex
+extern unsigned char  tci_a_enabled;    // 1 if RX channel 0 (VFO A) is the TX-active VFO
+extern unsigned char  tci_b_enabled;    // 1 if RX channel 1 (VFO B / sub-RX) is the TX-active VFO
 extern unsigned char  tci_ptt;          // 0 = RX, 1 = TX
 extern unsigned char  tci_connected;    // 1 if WS connected
 

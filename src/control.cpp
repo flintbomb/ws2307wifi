@@ -122,63 +122,167 @@ const char control_tit2_ger[] PROGMEM =
 <input type=\"text\" name=\"secret\" value=\"";
 
 
+// Indexes inside control_buttons_*[] — keep in sync with the array.
+#define BTN_OFF      1
+#define BTN_ON       2
+#define BTN_STANDBY  3
+#define BTN_ACTIVE   4
+
 void make_buttons()
 {
-char text[200+1];
+  char text[400];
+  char **labels = sprache ? control_buttons_english : control_buttons_ger;
 
-  for(int i=0; i<BUTANZ; i++)
-  {
-    char *p = sprache?control_buttons_english[i]:control_buttons_ger[i];
+  // Section heading (the array entry 0 is the "*ON / off controls" label)
+  snprintf(text, sizeof(text), "<p>%s</p>", labels[0] + 1);
+  html_send_ram(text);
 
-    if(p[0] != '*')
-      snprintf(text,200,"<button class=\"bt\" type=\"submit\" name=\"%s\">%s</button><br>",p,p);
-     else
-      snprintf(text,200,"<p>%s</p>",p+1);
+  // Per-button styles. Heights are tuned so the OFF button visually
+  // dominates and the toggle pill reads as one element.
+  html_send_ram((char *)
+    "<style>"
+    ".bt-off{background:#e60000;color:#fff;width:220px;height:78px;font-size:26px;"
+      "font-weight:bold;border:none;border-radius:14px;cursor:pointer;"
+      "margin:6px 0;box-shadow:0 3px 8px rgba(0,0,0,0.25);letter-spacing:2px;}"
+    ".bt-off:hover{background:#ff1a1a;}"
+    ".bt-on{background:#3333fa;color:#fff;width:220px;height:54px;font-size:18px;"
+      "font-weight:bold;border:none;border-radius:12px;cursor:pointer;margin:6px 0;}"
+    ".bt-on:hover{background:#4d4dff;}"
+    ".bt-pill{display:flex;width:220px;margin:6px 0;border-radius:12px;overflow:hidden;"
+      "border:2px solid #444;}"
+    ".bt-pill button{flex:1;height:54px;font-size:16px;font-weight:bold;border:none;"
+      "cursor:pointer;color:#fff;transition:background 0.2s;}"
+    ".bt-pill .bt-standby{background:#888;}"
+    ".bt-pill .bt-standby.is-current{background:#cc8800 !important;}"
+    ".bt-pill .bt-active{background:#555;}"
+    ".bt-pill .bt-active.is-current{background:#00aa44 !important;}"
+    "</style>");
 
-    html_send_ram(text);
-  }
+  // OFF (largest, bright red)
+  snprintf(text, sizeof(text),
+    "<button class=\"bt-off\" type=\"submit\" name=\"%s\">%s</button><br>",
+    labels[BTN_OFF], labels[BTN_OFF]);
+  html_send_ram(text);
+
+  // ON
+  snprintf(text, sizeof(text),
+    "<button class=\"bt-on\" type=\"submit\" name=\"%s\">%s</button><br>",
+    labels[BTN_ON], labels[BTN_ON]);
+  html_send_ram(text);
+
+  // STANDBY / ACTIVE toggle pill — JS adds .is-current to whichever side
+  // matches the current op state, so the active half lights up green and
+  // the standby half goes amber.
+  snprintf(text, sizeof(text),
+    "<div class=\"bt-pill\">"
+      "<button class=\"bt-standby\" id=\"btn_standby\" type=\"submit\" name=\"%s\">%s</button>"
+      "<button class=\"bt-active\"  id=\"btn_active\"  type=\"submit\" name=\"%s\">%s</button>"
+    "</div>",
+    labels[BTN_STANDBY], labels[BTN_STANDBY],
+    labels[BTN_ACTIVE],  labels[BTN_ACTIVE]);
+  html_send_ram(text);
 }
 
 
 // Emit a single coupler row: power gauge + SWR gauge side by side, with
 // IDs powerArcN/powerTextN/swrArcN/swrTextN so the JS handler can update
 // each independently. Half-circle 80px-radius arc length = pi*80 ~= 251.
-static void emit_coupler_row(int n, const char *labelP, const char *labelS)
+//
+// The K-1 (antenna) row gets bigger SVGs and a static orange "warning
+// band" on the power gauge from 80% -> 100% of the gauge max. The
+// dasharray "0 200 50 1" pattern paints only the trailing 20% of the
+// 251-unit arc.
+//
+// Implementation note: we stream chunks via html_send_ram instead of
+// buffering everything in a single big char[] on the stack, because the
+// ESP8266 has only ~4 KB of stack to share with the framework.
+static void emit_coupler_row(int n, const char *labelP, const char *labelS,
+                             int big, int warn)
 {
-  char buf[2048];
+  char buf[768];
+  int w  = big ? 240 : 180;
+  int h  = big ? 156 : 117;
+  int sw = big ? 22  : 18;
+  int fz = big ? 32  : 26;
+  int lz = big ? 14  : 12;
+  int rl = big ? 15  : 14;     // row label size
+
+  html_send_ram((char *)
+    "<div style=\"display:flex;justify-content:center;align-items:flex-start;"
+                "gap:30px;flex-wrap:wrap;margin:8px 0;\">"
+      "<div style=\"text-align:center;\">");
+
+  // Power gauge SVG
   snprintf(buf, sizeof(buf),
-    "<div style=\"display:flex;justify-content:center;gap:30px;flex-wrap:wrap;margin:8px 0;\">"
-      "<div style=\"text-align:center;\">"
-        "<svg viewBox=\"0 0 200 130\" width=\"180\" height=\"117\">"
-          "<path d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#ddd\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\"/>"
-          "<path id=\"powerArc%d\" d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#3333fa\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\""
-                " stroke-dasharray=\"251\" stroke-dashoffset=\"251\" style=\"transition:stroke-dashoffset 0.1s linear;\"/>"
-          "<text id=\"powerText%d\" x=\"100\" y=\"88\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"bold\" fill=\"#000088\">--</text>"
-          "<text x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"12\" fill=\"#555\">Watts</text>"
-        "</svg>"
-        "<div style=\"font-weight:bold;color:#000088;\">%s</div>"
-      "</div>"
-      "<div style=\"text-align:center;\">"
-        "<svg viewBox=\"0 0 200 130\" width=\"180\" height=\"117\">"
-          "<path d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#ddd\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\"/>"
-          "<path id=\"swrArc%d\" d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#00aa00\" stroke-width=\"18\" fill=\"none\" stroke-linecap=\"round\""
-                " stroke-dasharray=\"251\" stroke-dashoffset=\"251\" style=\"transition:stroke-dashoffset 0.1s linear,stroke 0.2s;\"/>"
-          "<text id=\"swrText%d\" x=\"100\" y=\"88\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"bold\" fill=\"#000088\">--</text>"
-          "<text x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"12\" fill=\"#555\">:1</text>"
-        "</svg>"
-        "<div style=\"font-weight:bold;color:#000088;\">%s</div>"
-      "</div>"
-    "</div>",
-    n, n, labelP,
-    n, n, labelS);
+    "<svg viewBox=\"0 0 200 130\" width=\"%d\" height=\"%d\">"
+    "<path d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#ddd\" "
+          "stroke-width=\"%d\" fill=\"none\" stroke-linecap=\"round\"/>",
+    w, h, sw);
+  html_send_ram(buf);
+
+  if (warn) {
+    snprintf(buf, sizeof(buf),
+      "<path d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#cc8800\" "
+      "stroke-width=\"%d\" fill=\"none\" stroke-linecap=\"round\" "
+      "stroke-dasharray=\"0 200 50 1\" opacity=\"0.55\"/>",
+      sw);
+    html_send_ram(buf);
+  }
+
+  snprintf(buf, sizeof(buf),
+    "<path id=\"powerArc%d\" d=\"M 20 100 A 80 80 0 0 1 180 100\" "
+          "stroke=\"#3333fa\" stroke-width=\"%d\" fill=\"none\" "
+          "stroke-linecap=\"round\" stroke-dasharray=\"251\" "
+          "stroke-dashoffset=\"251\" style=\"transition:stroke-dashoffset 0.1s linear;\"/>"
+    "<text id=\"powerText%d\" x=\"100\" y=\"88\" text-anchor=\"middle\" "
+          "font-size=\"%d\" font-weight=\"bold\" fill=\"#000088\">--</text>"
+    "<text x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"%d\" "
+          "fill=\"#555\">Watts (peak 2s)</text>"
+    "</svg>",
+    n, sw, n, fz, lz);
+  html_send_ram(buf);
+
+  snprintf(buf, sizeof(buf),
+    "<div style=\"font-weight:bold;color:#000088;font-size:%dpx;\">%s</div>"
+    "</div>"
+    "<div style=\"text-align:center;\">",
+    rl, labelP);
+  html_send_ram(buf);
+
+  // SWR gauge SVG
+  snprintf(buf, sizeof(buf),
+    "<svg viewBox=\"0 0 200 130\" width=\"%d\" height=\"%d\">"
+    "<path d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"#ddd\" "
+          "stroke-width=\"%d\" fill=\"none\" stroke-linecap=\"round\"/>"
+    "<path id=\"swrArc%d\" d=\"M 20 100 A 80 80 0 0 1 180 100\" "
+          "stroke=\"#00aa00\" stroke-width=\"%d\" fill=\"none\" "
+          "stroke-linecap=\"round\" stroke-dasharray=\"251\" "
+          "stroke-dashoffset=\"251\" style=\"transition:stroke-dashoffset 0.1s linear,stroke 0.2s;\"/>"
+    "<text id=\"swrText%d\" x=\"100\" y=\"88\" text-anchor=\"middle\" "
+          "font-size=\"%d\" font-weight=\"bold\" fill=\"#000088\">--</text>"
+    "<text x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"%d\" "
+          "fill=\"#555\">:1 (peak 2s)</text>"
+    "</svg>",
+    w, h, sw, n, sw, n, fz, lz);
+  html_send_ram(buf);
+
+  snprintf(buf, sizeof(buf),
+    "<div style=\"font-weight:bold;color:#000088;font-size:%dpx;\">%s</div>"
+    "</div></div>",
+    rl, labelS);
   html_send_ram(buf);
 }
 
 static const char tci_panel[] PROGMEM =
+"<style>"
+".tcirow{padding:3px 6px;border-radius:6px;font-size:14px;transition:all 0.15s;}"
+".tcirow.tci-active{font-size:20px;font-weight:bold;background:#ffe680;color:#000;"
+"box-shadow:0 0 0 2px #cc8800;}"
+"</style>"
 "<div style=\"margin:8px auto;padding:10px;background:#f4f4f4;border:1px solid #888;border-radius:8px;font-family:monospace;max-width:380px;\">"
   "<b>Thetis TCI</b> &nbsp; Status: <span id=\"tci_status\">--</span> &nbsp; PTT: <span id=\"tci_ptt\">--</span><br>"
-  "RX1: <span id=\"tci_vfo_a\">--</span> MHz <span id=\"tci_a_active\"></span><br>"
-  "RX2: <span id=\"tci_vfo_b\">--</span> MHz <span id=\"tci_b_active\"></span>"
+  "<div id=\"tci_row_a\" class=\"tcirow\">RX1: <span id=\"tci_vfo_a\">--</span> MHz <span id=\"tci_a_active\"></span></div>"
+  "<div id=\"tci_row_b\" class=\"tcirow\">RX2: <span id=\"tci_vfo_b\">--</span> MHz <span id=\"tci_b_active\"></span></div>"
 "</div>";
 
 // Top status bar: time, IP, WiFi, RSSI, op state, PTT
@@ -199,7 +303,7 @@ static const char status_bar[] PROGMEM =
 static void emit_value_gauge(const char *idSuffix, const char *units,
                              const char *label, const char *colorHi)
 {
-  char buf[1500];
+  char buf[900];
   snprintf(buf, sizeof(buf),
     "<div style=\"text-align:center;\">"
       "<svg viewBox=\"0 0 200 130\" width=\"150\" height=\"98\">"
@@ -207,11 +311,11 @@ static void emit_value_gauge(const char *idSuffix, const char *units,
         "<path id=\"arc_%s\" d=\"M 20 100 A 80 80 0 0 1 180 100\" stroke=\"%s\" stroke-width=\"16\" fill=\"none\" stroke-linecap=\"round\""
               " stroke-dasharray=\"251\" stroke-dashoffset=\"251\" style=\"transition:stroke-dashoffset 0.1s linear,stroke 0.2s;\"/>"
         "<text id=\"txt_%s\" x=\"100\" y=\"88\" text-anchor=\"middle\" font-size=\"24\" font-weight=\"bold\" fill=\"#000088\">--</text>"
-        "<text x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"11\" fill=\"#555\">%s</text>"
+        "<text id=\"unit_%s\" x=\"100\" y=\"118\" text-anchor=\"middle\" font-size=\"11\" fill=\"#555\">%s</text>"
       "</svg>"
       "<div style=\"font-weight:bold;color:#000088;font-size:13px;\">%s</div>"
     "</div>",
-    idSuffix, colorHi, idSuffix, units, label);
+    idSuffix, colorHi, idSuffix, idSuffix, units, label);
   html_send_ram(buf);
 }
 
@@ -267,6 +371,13 @@ char text[300+1];
   // the side column further down.
   html_send_ram((char *)"<form NAME=\"DSP7CTRL\">");
 
+  // TCI warning banner (hidden by default; ajax.cpp shows/hides it based
+  // on tci_enabled + tci_tx_freq + band-mode match).
+  html_send_ram((char *)
+    "<div id=\"tci_warn\" style=\"display:none;margin:8px auto;padding:10px 14px;"
+    "max-width:780px;background:#cc0000;color:#fff;border-radius:8px;"
+    "font-weight:bold;text-align:center;\"></div>");
+
   // 1) Top status strip — Time / IP / WiFi / RSSI / State / PTT + passcode
   html_send_progmem(status_bar);
   html_send_ram((char *)
@@ -300,9 +411,9 @@ char text[300+1];
   html_send_ram((char *)
       "</div>"
       "<div style=\"flex:1 1 auto;min-width:380px;\">");
-  emit_coupler_row(1, "Power (K-1 Antenna)", "SWR (K-1 Antenna)");
-  emit_coupler_row(2, "Power (K-2 Filter)",  "SWR (K-2 Filter)");
-  emit_coupler_row(3, "Power (K-3 Input)",   "SWR (K-3 Input)");
+  emit_coupler_row(1, "Power (K-1 Antenna)", "SWR (K-1 Antenna)", /*big*/1, /*warn*/1);
+  emit_coupler_row(2, "Power (K-2 Filter)",  "SWR (K-2 Filter)",  /*big*/0, /*warn*/0);
+  emit_coupler_row(3, "Power (K-3 Input)",   "SWR (K-3 Input)",   /*big*/0, /*warn*/0);
   html_send_ram((char *)
       "</div>"
     "</div>");
@@ -323,6 +434,28 @@ char text[300+1];
   emit_value_gauge("dcp", "Watts",       "DC Power",     "#3333fa");
   emit_value_gauge("eff", "%",           "Efficiency",   "#00aa00");
   emit_row_close();
+
+  // 6) Trend graph — antenna power + temperature over the last 5 min.
+  // Collapsible <details> so it doesn't compete for screen space when
+  // not in use. JS in ajax.cpp handles sample buffering and drawing.
+  html_send_ram((char *)
+    "<details style=\"margin:8px auto;max-width:780px;\" open>"
+      "<summary style=\"cursor:pointer;padding:6px 12px;background:#3333fa;"
+                "color:white;border-radius:6px;font-weight:bold;font-size:14px;"
+                "letter-spacing:1px;\">TREND (last 5 min)</summary>"
+      "<div style=\"background:#fff;padding:8px;margin-top:4px;border:1px solid "
+                  "#888;border-radius:6px;\">"
+        "<div style=\"font-size:12px;margin-bottom:4px;\">"
+          "<span style=\"color:#3333fa;font-weight:bold;\">"
+            "&#9632; Antenna Power</span> &nbsp; "
+          "<span style=\"color:#cc4400;font-weight:bold;\">"
+            "&#9632; Temperature 1</span>"
+        "</div>"
+        "<canvas id=\"trendCanvas\" width=\"760\" height=\"260\" "
+                "style=\"width:100%;max-width:760px;height:auto;display:block;\">"
+        "</canvas>"
+      "</div>"
+    "</details>");
 
   // Close the page-spanning form
   html_send_ram((char *)"</form>");

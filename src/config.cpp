@@ -17,12 +17,19 @@ int handle_config()
       if(server.hasArg("REFRESH"))
       {
         unsigned char tx[4] = { 0x01, 0x02, 0x03, 0x07 };
+        int prev_cfglen = stm32_cfglen;
         Serial.write(tx, 4);
 
+        // Poll up to 5s. evaluate_DSP7data2() only fires once the header
+        // byte shifts to position 0 of the 300-byte sliding-window buffer
+        // in ws_getdata(), which means ~84 bytes have to flow in after
+        // the 216-byte config packet. Break out early as soon as a fresh
+        // packet has been latched (cfglen jumps to a full 216).
         unsigned long start = millis();
-        while(millis() - start < 1500)
+        while(millis() - start < 5000)
         {
-          ws_getdata();   // consume bytes as they arrive
+          ws_getdata();
+          if(stm32_cfglen >= 216 && stm32_cfglen != prev_cfglen) break;
           delay(1);
         }
         makeConfigHTML(s_secret);
@@ -265,7 +272,16 @@ static void cfg_row_str(const char *name, const char *val)
 static void make_config_table()
 {
   // Need a full packet: 4 header + 2 length + 208 payload + 2 CRC = 216
-  if (stm32_cfglen < 216) return;
+  if (stm32_cfglen < 216) {
+    char buf[200];
+    snprintf(buf, sizeof(buf),
+      "<p style=\"color:#aa0000;font-size:14px;\">"
+      "No full config packet received yet (cfglen=%d/216). "
+      "Click REFRESH FROM DSP-7 to request one.</p>",
+      stm32_cfglen);
+    html_send_ram(buf);
+    return;
+  }
 
   html_send_ram((char *)
     "<style>"
@@ -371,8 +387,11 @@ char cfg[500+1];
   int len = getConfig(cfg);
   if(len == 0) strcpy(cfg,"no Cfg Data");
   if(len > 495) strcpy(cfg,"cfg too long");
-  snprintf(text,500,"Conf-Data: <input  id=\"inputTextToSave\" value=\"%s\" readonly>",cfg);
-  html_send_ram(text);
+  // Stream the input element in pieces so the cfg payload (up to 495
+  // chars of BCD) doesn't have to share a single buffer with the markup.
+  html_send_ram((char *)"Conf-Data: <input  id=\"inputTextToSave\" value=\"");
+  html_send_ram(cfg);
+  html_send_ram((char *)"\" readonly>");
 
   make_config_table();
 

@@ -130,9 +130,27 @@ unsigned char tx[4];
   Serial.write(wxval[IPADDRESS].sval,20);
 }
 
+// Send command 0x08: TX frequency update for DSP-7 band selection.
+// 8-byte frame, no CRC: 01 02 03 08 [B3][B2][B1][B0]  (freq Hz, big-endian).
+// DSP-7 times out stale data after 3 s; we send every 500 ms while a freq
+// is known, plus a single zero frame when the source drops out so it can
+// fall back to CIV/band-voltage immediately instead of waiting the timeout.
+static void send_tx_freq(unsigned long freq)
+{
+  unsigned char tx[8];
+  tx[0] = 0x01; tx[1] = 0x02; tx[2] = 0x03; tx[3] = 0x08;
+  tx[4] = (freq >> 24) & 0xFF;
+  tx[5] = (freq >> 16) & 0xFF;
+  tx[6] = (freq >>  8) & 0xFF;
+  tx[7] =  freq        & 0xFF;
+  Serial.write(tx, 8);
+}
+
 void dsp7_send()
 {
 static long lastsend = 0;
+static long last_freqsend = 0;
+static unsigned long last_freq_sent = 0;
 
   // sende Web Kommandos
   dsp_sendcontrol();
@@ -142,5 +160,26 @@ static long lastsend = 0;
   {
     lastsend = millis();
     ws_sendIP();
+  }
+
+  // TX frequency update — every 500 ms while we have one. If the source
+  // drops (tci_tx_freq goes to 0), emit one final zero frame so the DSP-7
+  // doesn't have to wait its 3 s timeout to release the override.
+  if((millis() - last_freqsend) > 500)
+  {
+    last_freqsend = millis();
+    if(tci_enabled && tci_tx_freq != 0)
+    {
+      send_tx_freq(tci_tx_freq);
+      last_freq_sent = tci_tx_freq;
+    }
+    else if(last_freq_sent != 0)
+    {
+      // Source dropped (TCI disabled or freq cleared) — push one zero
+      // frame so the DSP-7 releases the override immediately instead of
+      // waiting its 3 s timeout.
+      send_tx_freq(0);
+      last_freq_sent = 0;
+    }
   }
 }
