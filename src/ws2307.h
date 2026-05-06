@@ -116,6 +116,7 @@ typedef struct {
 // ----------------- globals defined in main.cpp ------------------------
 
 extern char accesscode[50];
+extern unsigned char require_passcode;   // 0 = passcode-gated endpoints accept any secret
 extern char callsign[15];
 extern char ssid[50];
 extern char password[50];
@@ -194,6 +195,13 @@ extern int            stm32_cfglen;
 extern unsigned char  txcfg[300];
 extern int            txcfg_len;
 
+// Persistent DSP-7 config snapshot stored in EEPROM. Lets the user
+// "Save to ESP" the current dump and "Restore" it later without
+// re-uploading a file.
+#define SAVED_CFG_MAX 256
+extern unsigned char  saved_config[SAVED_CFG_MAX];
+extern unsigned int   saved_config_len;     // 0 = no snapshot stored
+
 // ----------------- PROGMEM strings defined in progmem.cpp -------------
 
 extern const char htmlpages_begin[]     PROGMEM;
@@ -238,6 +246,12 @@ void html_EndPage();
 // HtmlHandler.cpp
 void handleNotFound();
 void handleRoot();
+
+// debug_log.cpp
+void debug_tci_log(char dir, const char *msg, size_t len);
+void debug_dsp7_log(char dir, const unsigned char *data, size_t len);
+void handle_tci_debug();
+void handle_dsp7_debug();
 
 // ajax.cpp
 void buildJavascript();

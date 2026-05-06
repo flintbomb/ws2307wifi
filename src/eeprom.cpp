@@ -69,10 +69,13 @@ int adr=10; // die ersten 10 lasse frei fuer Magic, Chksum
   EEPROM_writeAnything(adr,tci_host);  adr += sizeof(tci_host);
   EEPROM_writeAnything(adr,tci_port);  adr += sizeof(tci_port);
   EEPROM_writeAnything(adr,tci_enabled);  adr += sizeof(tci_enabled);
+  EEPROM_writeAnything(adr,require_passcode); adr += sizeof(require_passcode);
   EEPROM_writeAnything(adr,use_static_ip);    adr += sizeof(use_static_ip);
   EEPROM_writeAnything(adr,static_ip_str);    adr += sizeof(static_ip_str);
   EEPROM_writeAnything(adr,static_gw_str);    adr += sizeof(static_gw_str);
   EEPROM_writeAnything(adr,static_mask_str);  adr += sizeof(static_mask_str);
+  EEPROM_writeAnything(adr,saved_config_len); adr += sizeof(saved_config_len);
+  EEPROM_writeAnything(adr,saved_config);     adr += sizeof(saved_config);
 
   dx = adr;
 
@@ -103,10 +106,14 @@ char ok=1;
     EEPROM_readAnything(adr,tci_host);      adr += sizeof(tci_host);
     EEPROM_readAnything(adr,tci_port);      adr += sizeof(tci_port);
     EEPROM_readAnything(adr,tci_enabled);   adr += sizeof(tci_enabled);
+    EEPROM_readAnything(adr,require_passcode); adr += sizeof(require_passcode);
     EEPROM_readAnything(adr,use_static_ip);    adr += sizeof(use_static_ip);
     EEPROM_readAnything(adr,static_ip_str);    adr += sizeof(static_ip_str);
     EEPROM_readAnything(adr,static_gw_str);    adr += sizeof(static_gw_str);
     EEPROM_readAnything(adr,static_mask_str);  adr += sizeof(static_mask_str);
+    EEPROM_readAnything(adr,saved_config_len); adr += sizeof(saved_config_len);
+    EEPROM_readAnything(adr,saved_config);     adr += sizeof(saved_config);
+    if (saved_config_len > SAVED_CFG_MAX) saved_config_len = 0;
 
     //eeprom_printf("EEPROM erfolgreich gelesen.");
 

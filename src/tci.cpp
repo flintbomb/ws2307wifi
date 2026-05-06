@@ -119,12 +119,16 @@ static void ws_event(WStype_t type, uint8_t *payload, size_t length)
   {
     case WStype_CONNECTED:
       tci_connected = 1;
+      debug_tci_log('I', "[connected]", 11);
       ws.sendTXT("start;");
+      debug_tci_log('T', "start;", 6);
       break;
     case WStype_DISCONNECTED:
       tci_connected = 0;
+      debug_tci_log('I', "[disconnected]", 14);
       break;
     case WStype_TEXT:
+      debug_tci_log('R', (const char *)payload, length);
       parse_tci_payload((const char *)payload, length);
       break;
     default:

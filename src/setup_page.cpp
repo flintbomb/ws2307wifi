@@ -59,6 +59,10 @@ void handle_setupwebpage()
       // Always assigned unconditionally so unticking it actually persists.
       tci_enabled = server.hasArg("tcienabled") ? 1 : 0;
 
+      // require_passcode: same checkbox semantics. When off, control/config
+      // endpoints accept requests without a matching secret.
+      require_passcode = server.hasArg("requirepasscode") ? 1 : 0;
+
       // IP mode and static IP settings. Form always submits "ipmode" select
       // (static|dhcp), so this assignment is unconditional.
       if (server.hasArg("ipmode")) {
@@ -144,6 +148,14 @@ char text[500+1];
     "<input type=\"text\" name=\"tciport\" value=\"%u\"><br>",
     tci_enabled ? "checked" : "",
     tci_host, (unsigned)tci_port);
+  html_send_ram(text);
+
+  // Passcode requirement toggle
+  snprintf(text,500,
+    "<br><b><font color=\"#0000FF\">Access Control</font></b><br>"
+    "<input type=\"checkbox\" name=\"requirepasscode\" value=\"1\" %s> "
+    "Require passcode for control / config<br>",
+    require_passcode ? "checked" : "");
   html_send_ram(text);
 
 snprintf(text,500,

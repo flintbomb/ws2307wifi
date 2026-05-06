@@ -30,7 +30,7 @@ int handle_control()
     String s_secret = server.arg("secret");
     String s_accesscode = accesscode;
 
-    if (s_secret == s_accesscode)
+    if (!require_passcode || s_secret == s_accesscode)
     {
       for(int i=0; i<BUTANZ; i++)
       {
@@ -66,10 +66,16 @@ int handle_control()
 
 const char control_tit1[] PROGMEM = R"=====(
 <!doctype html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>DSP-7 CONTROL</title><style>
-body{background-color:#cccccc;font-family:Arial,Helvetica,Sans-Serif;Color:#000088;}
+body{background-color:#cccccc;font-family:Arial,Helvetica,Sans-Serif;Color:#000088;
+     max-width:100%;margin:0 auto;padding:0 6px;}
 
 .greentitle{
-padding:8px;
+display:flex;
+flex-wrap:wrap;
+align-items:center;
+justify-content:space-between;
+gap:8px 18px;
+padding:8px 14px;
 margin-bottom:8px;
 background-color:#3333fa;
 font-size:22px;
@@ -77,6 +83,11 @@ font-weight:bold;
 border-radius:12px;
 color:white;
 }
+.greentitle .titletext{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+.greentitle .titlestatus{flex:1 1 auto;color:#eef;}
+.greentitle .titlestatus b{color:#fff;}
+.greentitle .titlestatus span span{color:#9fffd9;}
+.greentitle .titlestatus #hdr_ptt{color:#fff;padding:2px 8px;border-radius:4px;background:#222;}
 
 .bt{
 background-color:#3333fa;
@@ -102,7 +113,7 @@ font-size: 24px;
 }
 </style>
 </head>
-<body><p><a class="greentitle"><img width="32" height="25" src="
+<body><div class="greentitle"><span class="titletext"><img width="32" height="25" src="
 )=====";
 
 
@@ -137,42 +148,34 @@ void make_buttons()
   snprintf(text, sizeof(text), "<p>%s</p>", labels[0] + 1);
   html_send_ram(text);
 
-  // Per-button styles. Heights are tuned so the OFF button visually
-  // dominates and the toggle pill reads as one element.
+  // Two pill toggles, identical style. Top: OFF / ON. Bottom: STANDBY /
+  // ACTIVE. Each half neutral by default; JS adds .is-current to the one
+  // matching the live OPSTATE, which paints OFF red, ON green, STANDBY
+  // amber, ACTIVE green.
   html_send_ram((char *)
     "<style>"
-    ".bt-off{background:#e60000;color:#fff;width:220px;height:78px;font-size:26px;"
-      "font-weight:bold;border:none;border-radius:14px;cursor:pointer;"
-      "margin:6px 0;box-shadow:0 3px 8px rgba(0,0,0,0.25);letter-spacing:2px;}"
-    ".bt-off:hover{background:#ff1a1a;}"
-    ".bt-on{background:#3333fa;color:#fff;width:220px;height:54px;font-size:18px;"
-      "font-weight:bold;border:none;border-radius:12px;cursor:pointer;margin:6px 0;}"
-    ".bt-on:hover{background:#4d4dff;}"
     ".bt-pill{display:flex;width:220px;margin:6px 0;border-radius:12px;overflow:hidden;"
       "border:2px solid #444;}"
     ".bt-pill button{flex:1;height:54px;font-size:16px;font-weight:bold;border:none;"
-      "cursor:pointer;color:#fff;transition:background 0.2s;}"
-    ".bt-pill .bt-standby{background:#888;}"
+      "cursor:pointer;color:#fff;transition:background 0.2s;background:#777;}"
+    ".bt-pill button:hover{background:#999;}"
+    ".bt-pill .bt-off.is-current{background:#cc0000 !important;}"
+    ".bt-pill .bt-on.is-current{background:#00aa44 !important;}"
     ".bt-pill .bt-standby.is-current{background:#cc8800 !important;}"
-    ".bt-pill .bt-active{background:#555;}"
     ".bt-pill .bt-active.is-current{background:#00aa44 !important;}"
     "</style>");
 
-  // OFF (largest, bright red)
+  // OFF / ON pill — JS toggles .is-current based on OPSTATE.
   snprintf(text, sizeof(text),
-    "<button class=\"bt-off\" type=\"submit\" name=\"%s\">%s</button><br>",
-    labels[BTN_OFF], labels[BTN_OFF]);
+    "<div class=\"bt-pill\">"
+      "<button class=\"bt-off\" id=\"btn_off\" type=\"submit\" name=\"%s\">%s</button>"
+      "<button class=\"bt-on\"  id=\"btn_on\"  type=\"submit\" name=\"%s\">%s</button>"
+    "</div>",
+    labels[BTN_OFF], labels[BTN_OFF],
+    labels[BTN_ON],  labels[BTN_ON]);
   html_send_ram(text);
 
-  // ON
-  snprintf(text, sizeof(text),
-    "<button class=\"bt-on\" type=\"submit\" name=\"%s\">%s</button><br>",
-    labels[BTN_ON], labels[BTN_ON]);
-  html_send_ram(text);
-
-  // STANDBY / ACTIVE toggle pill — JS adds .is-current to whichever side
-  // matches the current op state, so the active half lights up green and
-  // the standby half goes amber.
+  // STANDBY / ACTIVE toggle pill
   snprintf(text, sizeof(text),
     "<div class=\"bt-pill\">"
       "<button class=\"bt-standby\" id=\"btn_standby\" type=\"submit\" name=\"%s\">%s</button>"
@@ -206,6 +209,20 @@ static void emit_coupler_row(int n, const char *labelP, const char *labelS,
   int fz = big ? 32  : 26;
   int lz = big ? 14  : 12;
   int rl = big ? 15  : 14;     // row label size
+
+  // Big rows (K-1 Antenna) get a card-style outer wrapper with an accent
+  // border, gradient fill, and a corner tag so the antenna meters jump
+  // out from the rest of the dashboard.
+  if (big) {
+    html_send_ram((char *)
+      "<div style=\"position:relative;border:3px solid #3333fa;border-radius:14px;"
+      "background:linear-gradient(180deg,#ffffff,#eef0ff);"
+      "box-shadow:0 4px 14px rgba(51,51,250,0.25);"
+      "padding:14px 16px 10px;margin:14px 0 8px;\">"
+        "<div style=\"position:absolute;top:-11px;left:18px;background:#3333fa;"
+        "color:#fff;padding:2px 12px;border-radius:6px;font-size:11px;"
+        "font-weight:bold;letter-spacing:2px;\">ANTENNA</div>");
+  }
 
   html_send_ram((char *)
     "<div style=\"display:flex;justify-content:center;align-items:flex-start;"
@@ -271,6 +288,9 @@ static void emit_coupler_row(int n, const char *labelP, const char *labelS,
     "</div></div>",
     rl, labelS);
   html_send_ram(buf);
+
+  // Close the big-row card wrapper opened above.
+  if (big) html_send_ram((char *)"</div>");
 }
 
 static const char tci_panel[] PROGMEM =
@@ -279,16 +299,19 @@ static const char tci_panel[] PROGMEM =
 ".tcirow.tci-active{font-size:20px;font-weight:bold;background:#ffe680;color:#000;"
 "box-shadow:0 0 0 2px #cc8800;}"
 "</style>"
-"<div style=\"margin:8px auto;padding:10px;background:#f4f4f4;border:1px solid #888;border-radius:8px;font-family:monospace;max-width:380px;\">"
+"<div style=\"padding:10px;background:#f4f4f4;border:1px solid #888;border-radius:8px;font-family:monospace;max-width:380px;\">"
   "<b>Thetis TCI</b> &nbsp; Status: <span id=\"tci_status\">--</span> &nbsp; PTT: <span id=\"tci_ptt\">--</span><br>"
   "<div id=\"tci_row_a\" class=\"tcirow\">RX1: <span id=\"tci_vfo_a\">--</span> MHz <span id=\"tci_a_active\"></span></div>"
   "<div id=\"tci_row_b\" class=\"tcirow\">RX2: <span id=\"tci_vfo_b\">--</span> MHz <span id=\"tci_b_active\"></span></div>"
 "</div>";
 
-// Top status bar: time, IP, WiFi, RSSI, op state, PTT
+// Top status bar: time, IP, WiFi, RSSI, op state, PTT — embedded inside
+// the DSP-7 title bar via the .titlestatus wrapper class so it shares
+// the bar's blue background. Bumped one size up from the old 13 px row.
 static const char status_bar[] PROGMEM =
-"<div style=\"margin:8px auto;padding:8px 14px;background:#222;color:#eee;border-radius:8px;"
-"max-width:780px;display:flex;flex-wrap:wrap;gap:10px 22px;justify-content:center;font-family:monospace;font-size:13px;\">"
+"<div class=\"titlestatus\" style=\"display:flex;flex-wrap:wrap;gap:10px 22px;"
+"justify-content:center;align-items:center;font-family:monospace;font-size:15px;"
+"font-weight:normal;letter-spacing:0;\">"
   "<span><b>Time</b> <span id=\"hdr_time\">--</span></span>"
   "<span><b>IP</b> <span id=\"hdr_ip\">--</span></span>"
   "<span><b>WiFi</b> <span id=\"hdr_wifi\">--</span></span>"
@@ -325,7 +348,7 @@ static void emit_section(const char *title)
   char buf[200];
   snprintf(buf, sizeof(buf),
     "<div style=\"margin:14px auto 4px;padding:4px 12px;background:#3333fa;color:white;"
-    "max-width:780px;border-radius:6px;font-weight:bold;font-size:14px;letter-spacing:1px;\">%s</div>",
+    "max-width:100%;border-radius:6px;font-weight:bold;font-size:14px;letter-spacing:1px;\">%s</div>",
     title);
   html_send_ram(buf);
 }
@@ -334,25 +357,27 @@ static void emit_section(const char *title)
 static void emit_row_open()
 {
   html_send_ram((char *)
-    "<div style=\"display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:4px auto;max-width:780px;\">");
+    "<div style=\"display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:4px auto;max-width:100%;\">");
 }
 static void emit_row_close()
 {
   html_send_ram((char *)"</div>");
 }
 
-// Two pill badges side by side (band, antenna). Updated by JS via the
-// d.rows[] indices.
+// Band + Antenna pills, stacked. Sized to sit alongside the TCI panel.
+// Updated by JS via the d.rows[] indices (BAND_SELECTED / ANTENNA_SELECTED).
 static const char band_ant_panel[] PROGMEM =
-"<div style=\"margin:6px auto;padding:8px;text-align:center;max-width:780px;\">"
-  "<span style=\"display:inline-block;padding:6px 18px;margin:4px;background:#444;color:#0fb;"
-       "border-radius:8px;font-family:monospace;font-size:16px;font-weight:bold;\">"
+"<div style=\"display:flex;flex-direction:column;gap:8px;justify-content:center;\">"
+  "<div style=\"padding:10px 22px;background:#444;color:#0fb;"
+       "border-radius:10px;font-family:monospace;font-size:22px;font-weight:bold;"
+       "text-align:center;min-width:180px;\">"
     "Band: <span id=\"hdr_band\">--</span>"
-  "</span>"
-  "<span style=\"display:inline-block;padding:6px 18px;margin:4px;background:#444;color:#fc8;"
-       "border-radius:8px;font-family:monospace;font-size:16px;font-weight:bold;\">"
+  "</div>"
+  "<div style=\"padding:10px 22px;background:#444;color:#fc8;"
+       "border-radius:10px;font-family:monospace;font-size:22px;font-weight:bold;"
+       "text-align:center;min-width:180px;\">"
     "Antenna: <span id=\"hdr_ant\">--</span>"
-  "</span>"
+  "</div>"
 "</div>";
 
 void makeControlHTML(String s_secret)
@@ -361,62 +386,81 @@ char text[300+1];
 
   html_StartPage();
 
-  // Title bar (head + opening body + branded title)
+  // Title bar — combined title + status row in a single .greentitle div.
   html_send_progmem(control_tit1);
   html_send_progmem(wximage);
-  html_send_ram((char *)"\" alt=\" \"/>  DSP-7 CONTROL</a></p>");
+  html_send_ram((char *)"\" alt=\" \"/>  DSP-7 CONTROL</span>");
+  html_send_progmem(status_bar);   // emits the .titlestatus row inline
+  html_send_ram((char *)"</div>");  // close .greentitle
 
   // The whole page is one form so the passcode in the header is submitted
   // along with whichever ON/OFF/STANDBY/ACTIVE button the user clicks in
   // the side column further down.
   html_send_ram((char *)"<form NAME=\"DSP7CTRL\">");
+  if (require_passcode)
+  {
+    html_send_ram((char *)
+      "<div style=\"margin:6px auto;padding:6px 14px;background:#222;color:#eee;border-radius:8px;"
+      "max-width:100%;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;"
+      "font-family:monospace;font-size:13px;\">"
+      "<b style=\"color:#0fb;\">");
+    html_send_ram((char *)(sprache ? "Passcode:" : "Zugangskennung:"));
+    html_send_ram((char *)"</b>"
+      "<input type=\"text\" name=\"secret\" value=\"");
+    if (s_secret.length() > 0)
+      html_send_ram(const_cast<char*>(s_secret.c_str()));
+    html_send_ram((char *)
+      "\" size=\"12\" "
+      "style=\"padding:3px 8px;border-radius:4px;border:1px solid #555;background:#111;color:#eee;\">"
+      "</div>");
+  }
+  else
+  {
+    // Hidden input still present so the form structure (and the JS that
+    // reads f.elements['secret']) keeps working.
+    html_send_ram((char *)
+      "<input type=\"hidden\" name=\"secret\" value=\"\">");
+  }
 
-  // TCI warning banner (hidden by default; ajax.cpp shows/hides it based
-  // on tci_enabled + tci_tx_freq + band-mode match).
+  // 2) Thetis TCI panel + Band/Antenna stack, side by side, snug together.
   html_send_ram((char *)
-    "<div id=\"tci_warn\" style=\"display:none;margin:8px auto;padding:10px 14px;"
-    "max-width:780px;background:#cc0000;color:#fff;border-radius:8px;"
-    "font-weight:bold;text-align:center;\"></div>");
-
-  // 1) Top status strip — Time / IP / WiFi / RSSI / State / PTT + passcode
-  html_send_progmem(status_bar);
-  html_send_ram((char *)
-    "<div style=\"margin:6px auto;padding:6px 14px;background:#222;color:#eee;border-radius:8px;"
-    "max-width:780px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;"
-    "font-family:monospace;font-size:13px;\">"
-    "<b style=\"color:#0fb;\">");
-  html_send_ram((char *)(sprache ? "Passcode:" : "Zugangskennung:"));
-  html_send_ram((char *)"</b>"
-    "<input type=\"text\" name=\"secret\" value=\"");
-  if (s_secret.length() > 0)
-    html_send_ram(const_cast<char*>(s_secret.c_str()));
-  html_send_ram((char *)
-    "\" size=\"12\" "
-    "style=\"padding:3px 8px;border-radius:4px;border:1px solid #555;background:#111;color:#eee;\">"
-    "</div>");
-
-  // 2) Thetis TCI panel
+    "<div style=\"display:flex;justify-content:center;align-items:stretch;"
+    "gap:6px;flex-wrap:wrap;margin:8px auto;max-width:100%;\">");
   html_send_progmem(tci_panel);
-
-  // 3) Band / Antenna badges (sit directly above the meters + controls)
   html_send_progmem(band_ant_panel);
+  html_send_ram((char *)"</div>");
 
-  // 4) Power & SWR — controls column on the left, three couplers on the right
+  // 4) Power & SWR.
+  // Wrapped in a position:relative container so the band-mismatch warning
+  // can overlay the entire section. Top row: controls column on the left
+  // + K-1 (Antenna, big + warning band) on right. Bottom row: K-3 (Input)
+  // and K-2 (Filter) side by side, in that order.
   emit_section("POWER &amp; SWR");
   html_send_ram((char *)
+    "<div style=\"position:relative;\">"
+      // Warning overlay (hidden by default). When the JS sets display=flex
+      // it covers the gauges with a red banner.
+      "<div id=\"tci_warn\" style=\"display:none;position:absolute;top:0;left:0;"
+      "right:0;bottom:0;z-index:5;background:rgba(204,0,0,0.96);color:#fff;"
+      "border-radius:10px;font-weight:bold;font-size:18px;text-align:center;"
+      "padding:20px;align-items:center;justify-content:center;\"></div>"
     "<div style=\"display:flex;justify-content:center;align-items:flex-start;gap:20px;"
-    "flex-wrap:wrap;max-width:900px;margin:0 auto;\">"
+    "flex-wrap:wrap;max-width:100%;margin:0 auto;\">"
       "<div style=\"flex:0 0 auto;text-align:center;min-width:220px;\">");
   make_buttons();
   html_send_ram((char *)
       "</div>"
       "<div style=\"flex:1 1 auto;min-width:380px;\">");
   emit_coupler_row(1, "Power (K-1 Antenna)", "SWR (K-1 Antenna)", /*big*/1, /*warn*/1);
-  emit_coupler_row(2, "Power (K-2 Filter)",  "SWR (K-2 Filter)",  /*big*/0, /*warn*/0);
-  emit_coupler_row(3, "Power (K-3 Input)",   "SWR (K-3 Input)",   /*big*/0, /*warn*/0);
   html_send_ram((char *)
       "</div>"
-    "</div>");
+    "</div>"
+    // Second row: Input (K-3) first, Filter (K-2) second.
+    "<div style=\"display:flex;justify-content:center;align-items:flex-start;gap:20px;"
+    "flex-wrap:wrap;max-width:100%;margin:0 auto;\">");
+  emit_coupler_row(3, "Power (K-3 Input)",   "SWR (K-3 Input)",   /*big*/0, /*warn*/0);
+  emit_coupler_row(2, "Power (K-2 Filter)",  "SWR (K-2 Filter)",  /*big*/0, /*warn*/0);
+  html_send_ram((char *)"</div></div>");   // close K-3/K-2 row + position:relative wrapper
 
   // 4) Temperature & fan gauges
   emit_section("TEMPERATURE &amp; FAN");
@@ -439,7 +483,7 @@ char text[300+1];
   // Collapsible <details> so it doesn't compete for screen space when
   // not in use. JS in ajax.cpp handles sample buffering and drawing.
   html_send_ram((char *)
-    "<details style=\"margin:8px auto;max-width:780px;\" open>"
+    "<details style=\"margin:8px auto;max-width:100%;\" open>"
       "<summary style=\"cursor:pointer;padding:6px 12px;background:#3333fa;"
                 "color:white;border-radius:6px;font-weight:bold;font-size:14px;"
                 "letter-spacing:1px;\">TREND (last 5 min)</summary>"
@@ -460,11 +504,13 @@ char text[300+1];
   // Close the page-spanning form
   html_send_ram((char *)"</form>");
 
-  // 7) Setup / Config links
+  // 7) Setup / Config / Debug links
   html_send_ram((char *)
     "<div style=\"text-align:center;margin:14px;\">"
     "<a href=\"/setup.php\" target=\"_self\" class=\"bt\">SETUP</a> "
-    "<a href=\"/config.php\" target=\"_self\" class=\"bt\">CONFIG</a>"
+    "<a href=\"/config.php\" target=\"_self\" class=\"bt\">CONFIG</a> "
+    "<a href=\"/tci_debug.php\" target=\"_blank\" class=\"bt\">TCI LOG</a> "
+    "<a href=\"/dsp7_debug.php\" target=\"_blank\" class=\"bt\">DSP-7 LOG</a>"
     "</div>");
 
   // WebSocket handler keeps the entire dashboard live

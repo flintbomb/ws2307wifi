@@ -29,6 +29,7 @@ int d,i;
     ws_rxdata[3] == 0x56)
     {
       evaluate_DSP7data0(ws_rxdata);
+      debug_dsp7_log('R', ws_rxdata, 64);
     }
 
     if(ws_rxdata[0] == 0x64 &&
@@ -37,6 +38,7 @@ int d,i;
     ws_rxdata[3] == 0x61)
     {
       evaluate_DSP7data1(ws_rxdata);
+      debug_dsp7_log('R', ws_rxdata, 64);
     }
 
     if(ws_rxdata[0] == 0x01 &&
@@ -45,6 +47,7 @@ int d,i;
     ws_rxdata[3] == 0x05)
     {
       evaluate_DSP7data2(ws_rxdata);
+      debug_dsp7_log('R', ws_rxdata, 64);
     }
 }
 
@@ -63,6 +66,7 @@ static int first = 1;
   if(txcfg_len != 0)
   {
     Serial.write(txcfg,txcfg_len);
+    debug_dsp7_log('T', txcfg, txcfg_len);
     txcfg_len = 0;
     return;
   }
@@ -77,6 +81,7 @@ static int first = 1;
     tx[2] = 3;
     tx[3] = 7;
     Serial.write(tx,4);
+    debug_dsp7_log('T', tx, 4);
     return;
   }
 
@@ -113,7 +118,10 @@ static int first = 1;
     tx[3] = 4;
   }
   if(tx[0] != 0)
+  {
     Serial.write(tx,4);
+    debug_dsp7_log('T', tx, 4);
+  }
 }
 
 void ws_sendIP()
@@ -128,6 +136,7 @@ unsigned char tx[4];
   tx[3] = 6;
   Serial.write(tx,4);
   Serial.write(wxval[IPADDRESS].sval,20);
+  debug_dsp7_log('T', tx, 4);
 }
 
 // Send command 0x08: TX frequency update for DSP-7 band selection.
@@ -144,6 +153,7 @@ static void send_tx_freq(unsigned long freq)
   tx[6] = (freq >>  8) & 0xFF;
   tx[7] =  freq        & 0xFF;
   Serial.write(tx, 8);
+  debug_dsp7_log('T', tx, 8);
 }
 
 void dsp7_send()

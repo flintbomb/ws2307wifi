@@ -11,6 +11,7 @@
 
 // personal unique access code
 char accesscode[50] = {"1234"};
+unsigned char require_passcode = 1;   // setup-page checkbox; persisted to EEPROM
 
 char callsign[15] = "";
 
@@ -70,6 +71,8 @@ unsigned char conncnt = 0;
   server.on ("/setup.php",handle_setupwebpage);
   server.on ("/control.php",handle_control);
   server.on ("/config.php",handle_config);
+  server.on ("/tci_debug.php", handle_tci_debug);
+  server.on ("/dsp7_debug.php", handle_dsp7_debug);
 
   // if not existing page is called
   server.onNotFound ( handleNotFound );

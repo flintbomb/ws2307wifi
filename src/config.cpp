@@ -9,7 +9,7 @@ int handle_config()
     String s_config = server.arg("CONFIG");
     String s_accesscode = accesscode;
 
-    if (s_secret == s_accesscode)
+    if (!require_passcode || s_secret == s_accesscode)
     {
       // "Refresh" button: re-send the 0x07 request to make the DSP-7 push
       // its config dump, then poll the UART for ~1s so the reply arrives
@@ -19,6 +19,7 @@ int handle_config()
         unsigned char tx[4] = { 0x01, 0x02, 0x03, 0x07 };
         int prev_cfglen = stm32_cfglen;
         Serial.write(tx, 4);
+        debug_dsp7_log('T', tx, 4);
 
         // Poll up to 5s. evaluate_DSP7data2() only fires once the header
         // byte shifts to position 0 of the 300-byte sliding-window buffer
@@ -31,6 +32,35 @@ int handle_config()
           ws_getdata();
           if(stm32_cfglen >= 216 && stm32_cfglen != prev_cfglen) break;
           delay(1);
+        }
+        makeConfigHTML(s_secret);
+        return 1;
+      }
+
+      // "Save current DSP-7 config to ESP" — snapshot stm32_config[] into
+      // saved_config[], persist via writeEEPROM. Requires a fresh dump
+      // (cfglen >= 216) so we don't store half a packet.
+      if(server.hasArg("SAVECFG"))
+      {
+        if(stm32_cfglen >= 216 && stm32_cfglen <= (int)SAVED_CFG_MAX)
+        {
+          memcpy(saved_config, stm32_config, stm32_cfglen);
+          saved_config_len = (unsigned int)stm32_cfglen;
+          writeEEPROM();
+        }
+        makeConfigHTML(s_secret);
+        return 1;
+      }
+
+      // "Restore saved config to DSP-7" — push saved_config bytes through
+      // the same txcfg path that file uploads use (dsp_sendcontrol picks
+      // it up on the next loop tick).
+      if(server.hasArg("RESTORECFG"))
+      {
+        if(saved_config_len > 0 && saved_config_len <= sizeof(txcfg))
+        {
+          memcpy(txcfg, saved_config, saved_config_len);
+          txcfg_len = (int)saved_config_len;
         }
         makeConfigHTML(s_secret);
         return 1;
@@ -407,6 +437,42 @@ char cfg[500+1];
     "</form><br><br>",
     const_cast<char*>(s_secret.c_str()));
   html_send_ram(text);
+
+  // ESP-stored config snapshot. Lets the user save the current dump and
+  // play it back later without picking a file.
+  html_send_ram((char *)
+    "<hr><br><b><font color=\"#0000FF\" size=\"4\">STORED ON ESP</font></b><br>");
+  if (saved_config_len > 0)
+    snprintf(text, 500,
+      "<font color=\"#008000\">Saved snapshot present (%u bytes).</font><br>",
+      saved_config_len);
+  else
+    snprintf(text, 500,
+      "<font color=\"#888\">No snapshot saved yet.</font><br>");
+  html_send_ram(text);
+
+  snprintf(text, 500,
+    "<form style=\"display:inline\">"
+    "<input type=\"hidden\" name=\"secret\" value=\"%s\">"
+    "<input type=\"hidden\" name=\"SAVECFG\" value=\"1\">"
+    "<button class=\"bt\" type=\"submit\">SAVE CURRENT &rarr; ESP</button>"
+    "</form> ",
+    const_cast<char*>(s_secret.c_str()));
+  html_send_ram(text);
+
+  if (saved_config_len > 0)
+  {
+    snprintf(text, 500,
+      "<form style=\"display:inline\""
+            " onsubmit=\"return confirm('Send saved config back to DSP-7?');\">"
+      "<input type=\"hidden\" name=\"secret\" value=\"%s\">"
+      "<input type=\"hidden\" name=\"RESTORECFG\" value=\"1\">"
+      "<button class=\"bt\" type=\"submit\">RESTORE ESP &rarr; DSP-7</button>"
+      "</form>",
+      const_cast<char*>(s_secret.c_str()));
+    html_send_ram(text);
+  }
+  html_send_ram((char *)"<br><br>");
 
   html_send_progmem(download_config);
 

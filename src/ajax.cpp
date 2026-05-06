@@ -6,22 +6,34 @@
 
 // kept as a no-op so any old `<body onload='process()'>` markup doesn't
 // throw a ReferenceError after the rewrite.
+//
+// onmessage body is wrapped in try/catch so a runtime error in any one
+// section can't take out subsequent field updates — symptoms used to be
+// "the entire page stops updating" if any single line threw.
 static const char WS_ScriptBegin[] PROGMEM = R"=====(
 <SCRIPT>
 function process(){}
 function connectWS(){
  var ws=new WebSocket('ws://'+location.hostname+':81/');
  ws.onmessage=function(e){
-  var d=JSON.parse(e.data);
+  var d;try{d=JSON.parse(e.data);}catch(err){return;}
+  try{
 )=====";
 
 static const char WS_ScriptEnd[] PROGMEM = R"=====(
+  }catch(err){if(window.console)console.error('ws handler:',err);}
  };
  ws.onclose=function(){setTimeout(connectWS,1000);};
 }
 connectWS();
 </SCRIPT>
 )=====";
+
+// Wraps trend_js in its own <SCRIPT> block so the functions live at top
+// level (defined once on page load) instead of being re-declared inside
+// the onmessage handler every tick.
+static const char trend_script_open[]  PROGMEM = "<SCRIPT>";
+static const char trend_script_close[] PROGMEM = "</SCRIPT>";
 
 // Trend graph helpers. Plotted on a 760x260 <canvas id="trendCanvas">
 // emitted by control.cpp. Two series share the X axis (last 5 min):
@@ -95,11 +107,25 @@ void buildJavascript()
 
 void buildJavascript_control()
 {
-  // Static so the 2.5+ KB scratch buffer doesn't sit on the cont task
-  // stack — ESP8266 only has ~4 KB to share with the framework.
-  static char text[2800];
-  html_send_progmem(WS_ScriptBegin);
+  // Static so the scratch buffer doesn't sit on the cont task stack —
+  // ESP8266 only has ~4 KB to share with the framework. Buffer must
+  // hold the entire formatted onmessage body; sized with headroom so
+  // future tweaks don't silently truncate JS mid-statement (which
+  // surfaces in the browser as "missing ) after argument list").
+  static char text[4096];
+
+  // Emit the trend helpers in their own <script> first so they're
+  // defined at top-level page scope. Also stash whether the passcode is
+  // required so the click-handler can skip its empty-passcode warning
+  // when the user has turned the gate off in setup.
+  html_send_progmem(trend_script_open);
   html_send_progmem(trend_js);
+  char pc[60];
+  snprintf(pc, sizeof(pc), "window._pcReq=%u;", (unsigned)require_passcode);
+  html_send_ram(pc);
+  html_send_progmem(trend_script_close);
+
+  html_send_progmem(WS_ScriptBegin);
 
   // Intercept the control-panel form so OFF / ON / STANDBY / ACTIVE don't
   // reload the page. Fire the request as a fetch and let the websocket
@@ -114,9 +140,21 @@ void buildJavascript_control()
           "b.addEventListener('click',function(e){"
             "e.preventDefault();"
             "var sec=(f.elements['secret']&&f.elements['secret'].value)||'';"
+            "if(window._pcReq&&!sec){"
+              "var s=f.elements['secret'];"
+              "if(s){s.focus();s.style.outline='2px solid #ff0000';"
+                "setTimeout(function(){s.style.outline='';},1500);}"
+              "alert('Enter passcode in the header before sending control commands.');"
+              "return;"
+            "}"
             "var url='/control.php?secret='+encodeURIComponent(sec)+"
                     "'&'+encodeURIComponent(b.name)+'=1';"
-            "fetch(url,{method:'GET',cache:'no-store'});"
+            "fetch(url,{method:'GET',cache:'no-store'}).then(function(r){"
+              "if(!r.ok){"
+                "if(r.status===404)alert('Wrong passcode (server returned 404 / access denied).');"
+                "else alert('Control request failed: HTTP '+r.status);"
+              "}"
+            "}).catch(function(){alert('Control request failed: network error');});"
           "});"
         "});"
       "}"
@@ -202,20 +240,28 @@ void buildJavascript_control()
           "else if(exp!==''&&cur!==''&&cur.indexOf(exp)===-1)"
             "msg='TX freq band ('+exp+'m) does not match DSP-7 band ('+cur+')';"
         "}"
-        "tw.style.display=msg?'block':'none';"
+        "tw.style.display=msg?'flex':'none';"
         "tw.innerHTML=msg;"
       "}"
       // Op state badge + PTT highlight + STANDBY/ACTIVE toggle pill
       "var st=d.rows[%d]||'--';document.getElementById('hdr_state').innerHTML=st;"
       "var su=(st||'').toString().trim().toUpperCase();"
+      // DSP-7 emits 'OPERATION' for active, 'STANDBY' for standby,
+      // 'EMERG.OFF' for off, 'POWERUP' transitional (see ws2307_evaluate.cpp).
+      // ON-half is current whenever the radio is powered (STANDBY or OPERATION).
+      "var isAct=(su==='OPERATION');"
+      "var isStb=(su==='STANDBY');"
+      "var isOff=(su==='EMERG.OFF');"
+      "var isOn=(isAct||isStb);"
       "var bs=document.getElementById('btn_standby');var ba=document.getElementById('btn_active');"
+      "var boff=document.getElementById('btn_off');var bon=document.getElementById('btn_on');"
       "if(bs&&ba){"
-        // DSP-7 emits 'OPERATION' for the active state and 'STANDBY' for standby
-        // (see ws2307_evaluate.cpp). Match those exactly.
-        "var isAct=(su==='OPERATION');"
-        "var isStb=(su==='STANDBY');"
         "bs.classList.toggle('is-current',isStb);"
         "ba.classList.toggle('is-current',isAct);"
+      "}"
+      "if(boff&&bon){"
+        "boff.classList.toggle('is-current',isOff);"
+        "bon.classList.toggle('is-current',isOn);"
       "}"
       "var pt=d.rows[%d]||'--';var pe=document.getElementById('hdr_ptt');"
       "pe.innerHTML=pt;pe.style.background=(/TX|ON|tx|on/.test(pt))?'#cc0000':'#444';"

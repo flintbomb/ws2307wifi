@@ -489,6 +489,9 @@ void evaluate_DSP7data1(unsigned char *ws_rxdata)
 unsigned char stm32_config[500];
 int stm32_cfglen = 0;
 
+unsigned char saved_config[SAVED_CFG_MAX] = {0};
+unsigned int  saved_config_len = 0;
+
 // Konfig vom STM32 kommt
 void evaluate_DSP7data2(unsigned char *ws_rxdata)
 {
